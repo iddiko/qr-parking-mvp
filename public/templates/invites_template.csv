@@ -1,0 +1,3 @@
+email,role,building_code,unit_code,has_vehicle,plate,vehicle_type,location_label_default
+resident1@example.com,RESIDENT,A,101,true,12가3456,EV,Gate A
+guard1@example.com,GUARD,,,false,,,Main Entrance
