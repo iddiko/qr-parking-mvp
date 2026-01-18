@@ -1,11 +1,7 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BellIcon } from "../icons/BellIcon";
 import { UserIcon } from "../icons/UserIcon";
-import { LogoutIcon } from "../icons/LogoutIcon";
 import { useEditMode } from "@/lib/auth/editMode";
 import { supabaseClient } from "@/lib/supabase/client";
 import { ProfileMenuContent } from "./ProfileMenu";
@@ -23,8 +19,7 @@ type ComplexSelectionDetail = {
   name?: string;
 };
 
-export function Header({ complexName = "단지", showEditToggle = true, onMenuToggle }: HeaderProps) {
-  const router = useRouter();
+export function Header({ complexName = "??", showEditToggle = true, onMenuToggle }: HeaderProps) {
   const { enabled, setEnabled } = useEditMode();
   const [name, setName] = useState(complexName);
   const [showToggle, setShowToggle] = useState(showEditToggle);
@@ -33,11 +28,6 @@ export function Header({ complexName = "단지", showEditToggle = true, onMenuTo
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoComplexId, setLogoComplexId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const onLogout = async () => {
-    await supabaseClient.auth.signOut();
-    router.push("/auth/login");
-  };
 
   useEffect(() => {
     const load = async () => {
@@ -143,44 +133,31 @@ export function Header({ complexName = "단지", showEditToggle = true, onMenuTo
   return (
     <header className="app-header">
       <div className="app-header__brand">
-        <button className="menu-toggle" type="button" aria-label="메뉴 열기" onClick={onMenuToggle}>
+        <button className="menu-toggle menu-toggle--header" type="button" aria-label="?? ??" onClick={onMenuToggle}>
           <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
             <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
         </button>
         <div className={`app-logo ${logoUrl ? "app-logo--image" : ""}`}>
-          {logoUrl ? <img src={logoUrl} alt="로고" /> : "QR"}
+          {logoUrl ? <img src={logoUrl} alt="??" /> : "QR"}
         </div>
         <div className="app-header__titles">
-          <div className="app-title">QR 주차 MVP</div>
-          <div className="app-subtitle">{name || "단지 없음"}</div>
+          <div className="app-title">QR ?? MVP</div>
+          <div className="app-subtitle">{name || "?? ??"}</div>
         </div>
       </div>
       <div className="app-header__right">
         {showToggle ? (
           <label className="edit-toggle">
             <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-            수정 모드
+            ?? ??
           </label>
         ) : null}
-        <Link
-          className="icon-button"
-          href={
-            role === "GUARD"
-              ? "/guard/notifications"
-              : role === "RESIDENT"
-              ? "/resident/notifications"
-              : "/admin/notifications"
-          }
-          aria-label="알림"
-        >
-          <BellIcon />
-        </Link>
         <div className="profile-menu" ref={menuRef}>
           <button
             className="icon-button"
             type="button"
-            aria-label="마이페이지"
+            aria-label="?????"
             aria-expanded={menuOpen}
             aria-controls="profile-menu-panel"
             onClick={() => setMenuOpen((prev) => !prev)}
@@ -193,10 +170,8 @@ export function Header({ complexName = "단지", showEditToggle = true, onMenuTo
             </div>
           ) : null}
         </div>
-        <button className="icon-button" type="button" aria-label="로그아웃" onClick={onLogout}>
-          <LogoutIcon />
-        </button>
       </div>
     </header>
   );
 }
+

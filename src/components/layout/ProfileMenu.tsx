@@ -410,6 +410,12 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
       : profile?.role === "RESIDENT"
       ? "/resident/mypage"
       : "/admin/mypage";
+  const notificationsHref =
+    profile?.role === "GUARD"
+      ? "/guard/notifications"
+      : profile?.role === "RESIDENT"
+      ? "/resident/notifications"
+      : "/admin/notifications";
 
   const qrStatusLabel = (() => {
     if (qrStatus) {
@@ -516,6 +522,14 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
           </div>
           <Link className="profile-menu__edit" href={mypageHref} onClick={onNavigate}>
             내 정보 수정
+          </Link>          <Link className="profile-menu__edit" href={notificationsHref} onClick={onNavigate}>
+            <span className="profile-menu__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M6 9a6 6 0 1 1 12 0c0 6 2 6 2 6H4s2 0 2-6Z" />
+                <path d="M10 19a2 2 0 0 0 4 0" />
+              </svg>
+            </span>
+            ?? ??
           </Link>
         </div>
       ) : null}
@@ -545,3 +559,6 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     </div>
   );
 }
+
+
+

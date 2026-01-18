@@ -1,11 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { supabaseClient } from "@/lib/supabase/client";
 import { useEditMode } from "@/lib/auth/editMode";
 import { MenuGuard } from "@/components/layout/MenuGuard";
-import { useRightPanel } from "@/components/layout/RightPanelContext";
 
 type QrRow = {
   id: string;
@@ -122,7 +121,7 @@ const ddayLabel = (expiresAt: string | null) => {
   const diffMs = new Date(expiresAt).getTime() - Date.now();
   const diffDays = Math.ceil(diffMs / 86400000);
   if (diffDays < 0) {
-    return "만료";
+    return "만료됨";
   }
   if (diffDays === 0) {
     return "D-day";
@@ -149,10 +148,10 @@ const buildQrUrl = (code: string) => {
 
 export default function Page() {
   const { enabled } = useEditMode();
-  const { setContent } = useRightPanel();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -275,7 +274,7 @@ export default function Page() {
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      setStatus(errorData.error ?? "회원 목록을 불러올 수 없습니다.");
+      setStatus(errorData.error ?? "회원 정보를 불러오지 못했습니다.");
       setMembers([]);
       setLoading(false);
       return;
@@ -371,10 +370,102 @@ export default function Page() {
 
   const selectedRow = rows.find((row) => row.member.id === selectedMemberId) ?? null;
 
-  useEffect(() => {
-    const panel = (
-      <div style={{ display: "grid", gap: "14px" }}>
-        <div className="panel-card">
+  const openModal = (member: MemberRow, shouldEdit = false) => {
+    const qrs = member.vehicles?.flatMap((vehicle) => vehicle.qrs ?? []) ?? [];
+    const latestQr = qrs.sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    setSelectedMemberId(member.id);
+    setShowModal(true);
+    setEditingId(shouldEdit ? member.id : null);
+    setForm({
+      name: member.name ?? "",
+      phone: member.phone ?? "",
+      email: member.email ?? "",
+      role: member.role ?? "RESIDENT",
+      qrId: latestQr?.id ?? "",
+      qrExpiresAt: "",
+      complexId: member.complex_id ?? "",
+      buildingId: member.building_id ?? "",
+      unitId: member.unit_id ?? "",
+    });
+    setStatus("");
+  };
+
+  const closeModal = () => {
+    setEditingId(null);
+    setSelectedMemberId(null);
+    setShowModal(false);
+    setStatus("");
+  };
+
+  const save = async () => {
+    if (!editingId) {
+      return;
+    }
+    setStatus("");
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const token = sessionData.session?.access_token ?? "";
+    const response = await fetch("/api/members", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+        "x-edit-mode": enabled ? "true" : "false",
+      },
+      body: JSON.stringify({
+        id: editingId,
+        name: form.name || null,
+        phone: form.phone || null,
+        email: form.email || null,
+        role: form.role,
+        qr_id: form.qrId || null,
+        qr_expires_at: form.qrExpiresAt || null,
+        complex_id: form.complexId || null,
+        building_id: form.buildingId || null,
+        unit_id: form.unitId || null,
+      }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setStatus(data.error ?? "회원 정보를 저장하지 못했습니다.");
+      return;
+    }
+    setStatus("회원 정보가 저장되었습니다.");
+    setEditingId(null);
+    loadMembers();
+  };
+
+  const remove = async (memberId: string) => {
+    if (!confirm("회원을 삭제하시겠습니까?")) {
+      return;
+    }
+    setStatus("");
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const token = sessionData.session?.access_token ?? "";
+    const response = await fetch("/api/members", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+        "x-edit-mode": enabled ? "true" : "false",
+      },
+      body: JSON.stringify({ id: memberId }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setStatus(data.error ?? "회원 삭제에 실패했습니다.");
+      return;
+    }
+    setStatus("회원이 삭제되었습니다.");
+    loadMembers();
+  };
+
+  return (
+    <MenuGuard roleGroup="sub" toggleKey="members">
+      <div>
+        <h1 className="page-title">회원관리</h1>
+        <p className="muted">모든 계정을 조회하고 역할/정보/QR 상태를 관리합니다.</p>
+
+        <div className="panel-card members-filters">
           <div className="panel-title">회원 필터</div>
           <label>
             단지 필터
@@ -431,166 +522,10 @@ export default function Page() {
           ) : null}
         </div>
 
-        <div className="panel-card">
-          <div className="panel-title">QR 정보</div>
-          <div className="muted">회원을 선택하면 QR 정보가 표시됩니다.</div>
-          {selectedRow ? (
-            <div className="panel-qr">
-              <div className="panel-kv">
-                <span className="panel-kv__label">QR 유무</span>
-                <span className="panel-kv__value">{selectedRow.hasQr ? "있음" : "없음"}</span>
-              </div>
-              <div className="panel-kv">
-                <span className="panel-kv__label">QR 발행수</span>
-                <span className="panel-kv__value">{selectedRow.qrCount}</span>
-              </div>
-              <div className="panel-kv">
-                <span className="panel-kv__label">QR 발행일</span>
-                <span className="panel-kv__value">
-                  {selectedRow.qrIssuedAt ? formatDateTime(selectedRow.qrIssuedAt) : "-"}
-                </span>
-              </div>
-              <div className="panel-kv">
-                <span className="panel-kv__label">QR 만료일</span>
-                <span className="panel-kv__value">{ddayLabel(selectedRow.qrExpiresAt)}</span>
-              </div>
-              <div className="panel-kv">
-                <span className="panel-kv__label">QR 상태</span>
-                <span className="panel-kv__value">{qrStatusLabel(selectedRow.qrStatus)}</span>
-              </div>
-              <div className="panel-kv">
-                <span className="panel-kv__label">QR 현재 보유수</span>
-                <span className="panel-kv__value">{selectedRow.qrCount}</span>
-              </div>
-              <div className="panel-qr__thumb">
-                {selectedRow.hasQr ? (
-                  qrThumbs[selectedRow.member.id] ? (
-                    <img src={qrThumbs[selectedRow.member.id]} alt="QR" />
-                  ) : (
-                    <span className="muted">QR 이미지를 불러오는 중...</span>
-                  )
-                ) : (
-                  <span className="muted">QR 없음</span>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="panel-qr__empty" />
-          )}
-        </div>
-      </div>
-    );
-
-    setContent(panel);
-    return () => setContent(null);
-  }, [
-    filterComplexId,
-    filterBuildingId,
-    filterRole,
-    profileRole,
-    showAll,
-    complexes,
-    buildings,
-    selectedRow,
-    qrThumbs,
-    setContent,
-  ]);
-
-  const startEdit = (member: MemberRow) => {
-    const qrs = member.vehicles?.flatMap((vehicle) => vehicle.qrs ?? []) ?? [];
-    const latestQr = qrs.sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-    setEditingId(member.id);
-    setForm({
-      name: member.name ?? "",
-      phone: member.phone ?? "",
-      email: member.email ?? "",
-      role: member.role ?? "RESIDENT",
-      qrId: latestQr?.id ?? "",
-      qrExpiresAt: "",
-      complexId: member.complex_id ?? "",
-      buildingId: member.building_id ?? "",
-      unitId: member.unit_id ?? "",
-    });
-    setStatus("");
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setStatus("");
-  };
-
-  const save = async () => {
-    if (!editingId) {
-      return;
-    }
-    setStatus("");
-    const { data: sessionData } = await supabaseClient.auth.getSession();
-    const token = sessionData.session?.access_token ?? "";
-    const response = await fetch("/api/members", {
-      method: "PUT",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-        "x-edit-mode": enabled ? "true" : "false",
-      },
-      body: JSON.stringify({
-        id: editingId,
-        name: form.name || null,
-        phone: form.phone || null,
-        email: form.email || null,
-        role: form.role,
-        qr_id: form.qrId || null,
-        qr_expires_at: form.qrExpiresAt || null,
-        complex_id: form.complexId || null,
-        building_id: form.buildingId || null,
-        unit_id: form.unitId || null,
-      }),
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "회원 정보를 저장할 수 없습니다.");
-      return;
-    }
-    setStatus("회원 정보가 저장되었습니다.");
-    setEditingId(null);
-    loadMembers();
-  };
-
-  const remove = async (memberId: string) => {
-    if (!confirm("회원 삭제를 진행하시겠습니까?")) {
-      return;
-    }
-    setStatus("");
-    const { data: sessionData } = await supabaseClient.auth.getSession();
-    const token = sessionData.session?.access_token ?? "";
-    const response = await fetch("/api/members", {
-      method: "DELETE",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-        "x-edit-mode": enabled ? "true" : "false",
-      },
-      body: JSON.stringify({ id: memberId }),
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "회원 삭제에 실패했습니다.");
-      return;
-    }
-    setStatus("회원이 삭제되었습니다.");
-    loadMembers();
-  };
-
-  return (
-    <MenuGuard roleGroup="sub" toggleKey="members">
-      <div>
-        <h1 className="page-title">회원관리</h1>
-        <p className="muted">모든 계정을 조회하고 역할/정보/QR 상태를 관리합니다.</p>
-
         {status ? <div className="muted">{status}</div> : null}
         {!loading && members.length === 0 ? <div className="muted">조회된 회원이 없습니다.</div> : null}
 
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
+        <table className="members-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
           <thead>
             <tr>
               <th align="left">레벨</th>
@@ -606,12 +541,64 @@ export default function Page() {
           </thead>
           <tbody>
             {rows.map(({ member, qrStatus, complexName, buildingLabel, unitLabel, displayPhone }) => {
-              const isEditing = editingId === member.id;
               const canEdit = member.role === "RESIDENT" ? qrStatus === "ACTIVE" : true;
               return (
-                <tr key={member.id} onClick={() => setSelectedMemberId(member.id)} style={{ cursor: "pointer" }}>
+                <tr key={member.id} onClick={() => openModal(member)} style={{ cursor: "pointer" }}>
+                  <td className="members-role">
+                    <span className={`role-badge ${roleClassName(member.role)}`}>{roleLabel(member.role)}</span>
+                  </td>
+                  <td>{member.name ?? "-"}</td>
+                  <td>{displayPhone}</td>
+                  <td className="members-email">{member.email}</td>
+                  <td>{complexName}</td>
+                  <td>{buildingLabel}</td>
+                  <td>{unitLabel}</td>
                   <td>
-                    {isEditing ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openModal(member, true);
+                      }}
+                      disabled={!canEdit}
+                    >
+                      수정
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        remove(member.id);
+                      }}
+                      disabled={!enabled}
+                    >
+                      삭제
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {showModal && selectedRow ? (
+          <>
+            <button className="members-modal-overlay" type="button" onClick={closeModal} aria-label="닫기" />
+            <div className="members-modal" role="dialog" aria-modal="true">
+              <div className="members-modal__header">
+                <h2 className="members-modal__title">회원 상세</h2>
+                <button type="button" className="members-modal__close" onClick={closeModal}>
+                  닫기
+                </button>
+              </div>
+              <div className="members-modal__body">
+                <div className="members-modal__section">
+                  <div className="members-modal__section-title">기본 정보</div>
+                  <label>
+                    역할
+                    {editingId ? (
                       <select
                         value={form.role}
                         onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value }))}
@@ -623,41 +610,45 @@ export default function Page() {
                         <option value="RESIDENT">입주민</option>
                       </select>
                     ) : (
-                      <span className={`role-badge ${roleClassName(member.role)}`}>{roleLabel(member.role)}</span>
+                      <div className="members-modal__value">{roleLabel(selectedRow.member.role)}</div>
                     )}
-                  </td>
-                  <td>
-                    {isEditing ? (
+                  </label>
+                  <label>
+                    이름
+                    {editingId ? (
                       <input
                         value={form.name}
                         onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                       />
                     ) : (
-                      member.name ?? "-"
+                      <div className="members-modal__value">{selectedRow.member.name ?? "-"}</div>
                     )}
-                  </td>
-                  <td>
-                    {isEditing ? (
-                      <input
-                        value={form.phone}
-                        onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-                      />
-                    ) : (
-                      displayPhone
-                    )}
-                  </td>
-                  <td>
-                    {isEditing ? (
+                  </label>
+                  <label>
+                    이메일
+                    {editingId ? (
                       <input
                         value={form.email}
                         onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
                       />
                     ) : (
-                      member.email
+                      <div className="members-modal__value">{selectedRow.member.email}</div>
                     )}
-                  </td>
-                  <td>
-                    {isEditing && profileRole === "SUPER" ? (
+                  </label>
+                  <label>
+                    전화번호
+                    {editingId ? (
+                      <input
+                        value={form.phone}
+                        onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                      />
+                    ) : (
+                      <div className="members-modal__value">{selectedRow.displayPhone}</div>
+                    )}
+                  </label>
+                  <label>
+                    단지
+                    {editingId && profileRole === "SUPER" ? (
                       <select
                         value={form.complexId}
                         onChange={(event) =>
@@ -677,11 +668,12 @@ export default function Page() {
                         ))}
                       </select>
                     ) : (
-                      complexName
+                      <div className="members-modal__value">{selectedRow.complexName}</div>
                     )}
-                  </td>
-                  <td>
-                    {isEditing ? (
+                  </label>
+                  <label>
+                    동
+                    {editingId ? (
                       <select
                         value={form.buildingId}
                         onChange={(event) =>
@@ -701,11 +693,12 @@ export default function Page() {
                         ))}
                       </select>
                     ) : (
-                      buildingLabel
+                      <div className="members-modal__value">{selectedRow.buildingLabel}</div>
                     )}
-                  </td>
-                  <td>
-                    {isEditing ? (
+                  </label>
+                  <label>
+                    호수
+                    {editingId ? (
                       <select
                         value={form.unitId}
                         onChange={(event) => setForm((prev) => ({ ...prev, unitId: event.target.value }))}
@@ -718,35 +711,68 @@ export default function Page() {
                         ))}
                       </select>
                     ) : (
-                      unitLabel
+                      <div className="members-modal__value">{selectedRow.unitLabel}</div>
                     )}
-                  </td>
-                  <td>
-                    {isEditing ? (
-                      <>
-                        <button type="button" onClick={save} disabled={!enabled}>
-                          저장
-                        </button>
-                        <button type="button" onClick={cancelEdit}>
-                          취소
-                        </button>
-                      </>
+                  </label>
+                </div>
+
+                <div className="members-modal__section">
+                  <div className="members-modal__section-title">QR 정보</div>
+                  <div className="panel-kv">
+                    <span className="panel-kv__label">QR 유무</span>
+                    <span className="panel-kv__value">{selectedRow.hasQr ? "있음" : "없음"}</span>
+                  </div>
+                  <div className="panel-kv">
+                    <span className="panel-kv__label">QR 발행수</span>
+                    <span className="panel-kv__value">{selectedRow.qrCount}</span>
+                  </div>
+                  <div className="panel-kv">
+                    <span className="panel-kv__label">QR 발행일</span>
+                    <span className="panel-kv__value">
+                      {selectedRow.qrIssuedAt ? formatDateTime(selectedRow.qrIssuedAt) : "-"}
+                    </span>
+                  </div>
+                  <div className="panel-kv">
+                    <span className="panel-kv__label">QR 만료일</span>
+                    <span className="panel-kv__value">{ddayLabel(selectedRow.qrExpiresAt)}</span>
+                  </div>
+                  <div className="panel-kv">
+                    <span className="panel-kv__label">QR 상태</span>
+                    <span className="panel-kv__value">{qrStatusLabel(selectedRow.qrStatus)}</span>
+                  </div>
+                  <div className="panel-qr__thumb">
+                    {selectedRow.hasQr ? (
+                      qrThumbs[selectedRow.member.id] ? (
+                        <img src={qrThumbs[selectedRow.member.id]} alt="QR" />
+                      ) : (
+                        <span className="muted">QR 이미지를 불러오는 중입니다.</span>
+                      )
                     ) : (
-                      <button type="button" onClick={() => startEdit(member)} disabled={!canEdit}>
-                        수정
-                      </button>
+                      <span className="muted">QR 없음</span>
                     )}
-                  </td>
-                  <td>
-                    <button type="button" onClick={() => remove(member.id)} disabled={!enabled}>
-                      삭제
+                  </div>
+                </div>
+              </div>
+
+              <div className="members-modal__actions">
+                {editingId ? (
+                  <>
+                    <button type="button" onClick={save} disabled={!enabled}>
+                      저장
                     </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    <button type="button" onClick={closeModal}>
+                      닫기
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => openModal(selectedRow.member, true)}>
+                    수정 시작
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
     </MenuGuard>
   );

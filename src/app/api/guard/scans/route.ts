@@ -20,7 +20,9 @@ export async function GET(req: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("scans")
-    .select("id, location_label, result, vehicle_plate, created_at, guard_profile_id")
+    .select(
+      "id, location_label, result, vehicle_plate, created_at, guard_profile_id, qr_id, qrs(vehicles(owner_profile_id, profiles(email)))"
+    )
     .eq("guard_profile_id", profile!.id)
     .order("created_at", { ascending: false });
 

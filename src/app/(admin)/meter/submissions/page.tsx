@@ -150,27 +150,30 @@ export default function Page() {
     <MenuGuard roleGroup="sub" toggleKey="meter.submissions">
       <div>
         <h1 className="page-title">검침 제출</h1>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th align="left">검침 주기</th>
-              <th align="left">검침값</th>
-              <th align="left">제출일</th>
-              <th align="left">세대</th>
-            </tr>
-          </thead>
-          <tbody>
-            {submissions.map((row) => (
-              <tr key={row.id}>
-                <td>{row.meter_cycles?.title ?? "-"}</td>
-                <td>{row.reading_value}</td>
-                <td>{formatSubmittedAt(row.submitted_at)}</td>
-                <td>{formatUnitLabel(row)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+    <thead>
+      <tr>
+        <th align="left">?? ??</th>
+        <th align="left">???</th>
+        <th align="left">???</th>
+        <th align="left">??</th>
+      </tr>
+    </thead>
+    <tbody>
+      {submissions.map((row) => (
+        <tr key={row.id}>
+          <td>{row.meter_cycles?.title ?? "-"}</td>
+          <td>{row.reading_value}</td>
+          <td>{formatSubmittedAt(row.submitted_at)}</td>
+          <td>{formatUnitLabel(row)}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
       </div>
     </MenuGuard>
   );
 }
+

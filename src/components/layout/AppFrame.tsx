@@ -33,7 +33,7 @@ export function AppFrame({ children, complexName, showEditToggle }: AppFrameProp
             <main className="content">{children}</main>
             <RightPanel />
           </BodyGrid>
-          <Footer />
+          <Footer onMenuToggle={() => setSidebarOpen((prev) => !prev)} />
         </div>
       </RightPanelProvider>
     </EditModeProvider>
