@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { supabaseClient } from "@/lib/supabase/client";
@@ -39,7 +39,6 @@ function CycleFormPanel({ enabled, role, complexId, onCreated }: CycleFormProps)
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [statusText, setStatusText] = useState("");
-  const [isComposing, setIsComposing] = useState(false);
 
   const createCycle = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -67,7 +66,7 @@ function CycleFormPanel({ enabled, role, complexId, onCreated }: CycleFormProps)
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatusText(data.error ?? "검침 주기를 등록하지 못했습니다.");
+      setStatusText(data.error ?? "검침 주기 등록에 실패했습니다.");
       return;
     }
     setTitle("");
@@ -87,25 +86,16 @@ function CycleFormPanel({ enabled, role, complexId, onCreated }: CycleFormProps)
             type="text"
             inputMode="text"
             value={title}
-            onChange={(e) => {
-              if (!isComposing) {
-                setTitle(e.target.value);
-              }
-            }}
-            onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={(e) => {
-              setIsComposing(false);
-              setTitle(e.currentTarget.value);
-            }}
+            onChange={(event) => setTitle(event.currentTarget.value)}
           />
         </label>
         <label>
           시작 날짜
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         </label>
         <label>
           종료 날짜
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
         </label>
         <button type="submit" disabled={!enabled}>
           검침 주기 등록
