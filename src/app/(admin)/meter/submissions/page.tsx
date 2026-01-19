@@ -57,9 +57,9 @@ function MissingUnitsPanel() {
 
   return (
     <div className="panel-card">
-      <h3 className="panel-title">미검침 세대</h3>
+      <h3 className="panel-title">??? ??</h3>
       <label className="field-label" htmlFor="missing-building">
-        동 선택
+        ? ??
       </label>
       <select
         id="missing-building"
@@ -67,21 +67,21 @@ function MissingUnitsPanel() {
         value={buildingId}
         onChange={(event) => setBuildingId(event.target.value)}
       >
-        <option value="all">전체</option>
+        <option value="all">??</option>
         {buildings.map((building) => (
           <option key={building.id} value={building.id}>
-            {(building.code ?? building.name ?? "동") + "동"}
+            {(building.code ?? building.name ?? "?") + "?"}
           </option>
         ))}
       </select>
       <div className="chip-row">
         {missingUnits.length === 0 ? (
-          <span className="muted">미검침 세대가 없습니다.</span>
+          <span className="muted">??? ??? ????.</span>
         ) : (
           missingUnits.map((unit) => (
             <span key={unit.profile_id} className="chip">
-              {unit.building_code ? `${unit.building_code}동 ` : ""}
-              {unit.unit_code ? `${unit.unit_code}호` : "호수 없음"}
+              {unit.building_code ? `${unit.building_code}? ` : ""}
+              {unit.unit_code ? `${unit.unit_code}?` : "?? ???"}
             </span>
           ))
         )}
@@ -138,42 +138,41 @@ export default function Page() {
       return "-";
     }
     if (buildingCode && unitCode) {
-      return `${buildingCode}동 ${unitCode}호`;
+      return `${buildingCode}? ${unitCode}?`;
     }
     if (buildingCode) {
-      return `${buildingCode}동`;
+      return `${buildingCode}?`;
     }
-    return `${unitCode}호`;
+    return `${unitCode}?`;
   };
 
   return (
     <MenuGuard roleGroup="sub" toggleKey="meter.submissions">
       <div>
-        <h1 className="page-title">검침 제출</h1>
+        <h1 className="page-title">?? ??</h1>
         <div className="table-scroll">
-  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-    <thead>
-      <tr>
-        <th align="left">?? ??</th>
-        <th align="left">???</th>
-        <th align="left">???</th>
-        <th align="left">??</th>
-      </tr>
-    </thead>
-    <tbody>
-      {submissions.map((row) => (
-        <tr key={row.id}>
-          <td>{row.meter_cycles?.title ?? "-"}</td>
-          <td>{row.reading_value}</td>
-          <td>{formatSubmittedAt(row.submitted_at)}</td>
-          <td>{formatUnitLabel(row)}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th align="left">?? ??</th>
+                <th align="left">?? ?</th>
+                <th align="left">???</th>
+                <th align="left">?/??</th>
+              </tr>
+            </thead>
+            <tbody>
+              {submissions.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.meter_cycles?.title ?? "-"}</td>
+                  <td>{row.reading_value}</td>
+                  <td>{formatSubmittedAt(row.submitted_at)}</td>
+                  <td>{formatUnitLabel(row)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </MenuGuard>
   );
 }
-

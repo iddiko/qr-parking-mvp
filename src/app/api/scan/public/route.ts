@@ -5,7 +5,7 @@ import { sendScanEmail } from "@/lib/notify/email";
 export async function POST(req: Request) {
   const body = await req.json();
   const code = body.code as string;
-  const fallbackLocationLabel = "?? ???";
+const fallbackLocationLabel = "위치 미지정";
   const locationLabel = (body.location_label as string | undefined) ?? fallbackLocationLabel;
   const locationLat = body.location_lat as number | null | undefined;
   const locationLng = body.location_lng as number | null | undefined;

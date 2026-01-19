@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabaseClient } from "@/lib/supabase/client";
@@ -38,11 +38,11 @@ type ScanRow = {
 };
 
 const roleLabel: Record<ProfileRow["role"], string> = {
-  SUPER: "슈퍼관리자",
-  MAIN: "메인관리자",
-  SUB: "서브관리자",
-  GUARD: "경비",
-  RESIDENT: "입주민",
+    SUPER: "슈퍼관리자",
+    MAIN: "메인관리자",
+    SUB: "서브관리자",
+    GUARD: "경비",
+    RESIDENT: "입주민",
 };
 
 export default function Page() {
@@ -227,47 +227,47 @@ export default function Page() {
         <div className="dashboard-header">
           <div>
             <h1 className="page-title">서브관리자 대시보드</h1>
-            <div className="muted">동 기준 통계 데이터를 확인하세요.</div>
+            <div className="muted">동 내 통계와 현황을 한눈에 확인하세요.</div>
           </div>
           <div className="dashboard-filters">
-            <div className="muted">실시간 갱신 (15초)</div>
+            <div className="muted">최근 15일 기준</div>
           </div>
         </div>
 
         <div className="dashboard-grid">
           <div className="stat-card">
             <span className="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="5" y="4" width="14" height="16" rx="2" /><path d="M9 20v-5h6v5" /></svg></span>
-            <div className="stat-label">?? ?</div>
+            <div className="stat-label">세대 수</div>
             <div className="stat-value">{metrics.units}</div>
           </div>
           <div className="stat-card">
             <span className="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="3" /><path d="M4 20c1.5-4 6-6 8-6s6.5 2 8 6" /></svg></span>
-            <div className="stat-label">??? ?</div>
+            <div className="stat-label">입주민 수</div>
             <div className="stat-value">{metrics.residents}</div>
           </div>
           <div className="stat-card">
             <span className="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3l8 3v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-3z" /></svg></span>
-            <div className="stat-label">??</div>
+            <div className="stat-label">경비</div>
             <div className="stat-value">{metrics.guards}</div>
           </div>
           <div className="stat-card">
             <span className="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 13l2-5h12l2 5" /><path d="M5 13h14v5H5z" /><circle cx="8" cy="18" r="1.5" /><circle cx="16" cy="18" r="1.5" /></svg></span>
-            <div className="stat-label">?? ??</div>
+            <div className="stat-label">차량 등록</div>
             <div className="stat-value">{metrics.vehicles}</div>
           </div>
           <div className="stat-card">
             <span className="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8 12h8" /><path d="M12 8v8" /></svg></span>
-            <div className="stat-label">?? ??</div>
+            <div className="stat-label">차량 등록</div>
             <div className="stat-value">{metrics.scans}</div>
           </div>
           <div className="stat-card">
             <span className="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 12l4 4 12-12" /></svg></span>
-            <div className="stat-label">QR ??</div>
+            <div className="stat-label">QR 활성</div>
             <div className="stat-value">{metrics.qrActive}</div>
           </div>
           <div className="stat-card">
             <span className="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 6l12 12" /><path d="M18 6l-12 12" /></svg></span>
-            <div className="stat-label">QR ???</div>
+            <div className="stat-label">QR 비활성</div>
             <div className="stat-value">{metrics.qrInactive}</div>
           </div>
         </div>
@@ -320,7 +320,7 @@ export default function Page() {
           </section>
 
           <section className="chart-card">
-            <div className="chart-title">3D 스캔 흐름</div>
+            <div className="chart-title">3D 막대 그래프</div>
             <div className="chart-3d">
               {scanTrend.map((item) => (
                 <div key={item.key} className="chart-3d__bar" style={{ height: `${(item.value / maxScan) * 100}%` }}>
@@ -334,4 +334,5 @@ export default function Page() {
     </MenuGuard>
   );
 }
+
 

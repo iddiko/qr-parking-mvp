@@ -10,7 +10,7 @@ export function Footer({ onMenuToggle }: FooterProps) {
           <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         </svg>
       </button>
-      <span className="footer-brand">QR 주차 MVP</span>
+      <span className="footer-brand">QR Parking MVP</span>
     </footer>
   );
 }
