@@ -13,6 +13,7 @@ type Profile = {
   role: "SUPER" | "MAIN" | "SUB" | "GUARD" | "RESIDENT";
   complex_id: string | null;
   building_id: string | null;
+  unit?: string | null;
 };
 
 type ComplexRow = {
@@ -403,6 +404,18 @@ export default function Page() {
       .join(" ");
   };
 
+  const getAreaPath = (values: number[], height = 60) => {
+    if (values.length === 0) return "";
+    const step = values.length === 1 ? 0 : 100 / (values.length - 1);
+    const points = values.map((value, index) => {
+      const x = step * index;
+      const y = height - (value / scanMax) * height;
+      return `${x},${y}`;
+    });
+    const lastX = step * (values.length - 1);
+    return `M0,${height} L${points.join(" L")} L${lastX},${height} Z`;
+  };
+
   if (allowed === null) {
     return <div className="muted">대시보드를 불러오는 중입니다.</div>;
   }
@@ -624,24 +637,50 @@ export default function Page() {
             </div>
           </div>
 
-                    <div className="mobile-scroll">
+          <div className="mobile-scroll">
             <div className="mobile-kpi-grid">
               <div className="mobile-kpi-card">
+                <div className="mobile-kpi-icon mobile-kpi-icon--members" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <path d="M4 20c1.6-4.2 6.3-6 8-6s6.4 1.8 8 6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                </div>
                 <div className="mobile-kpi-title">총 회원</div>
                 <div className="mobile-kpi-value">{metrics.totalMembers}명</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--rose" />
               </div>
               <div className="mobile-kpi-card">
+                <div className="mobile-kpi-icon mobile-kpi-icon--qr" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="4" y="4" width="7" height="7" rx="1" />
+                    <rect x="13" y="4" width="7" height="7" rx="1" />
+                    <rect x="4" y="13" width="7" height="7" rx="1" />
+                    <path d="M13 13h3v3h-3zM16 16h4v4h-4z" />
+                  </svg>
+                </div>
                 <div className="mobile-kpi-title">활성 QR</div>
                 <div className="mobile-kpi-value">{metrics.qrActive}개</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--amber" />
               </div>
               <div className="mobile-kpi-card">
-                <div className="mobile-kpi-title">일일 스캔</div>
+                <div className="mobile-kpi-icon mobile-kpi-icon--scan" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <path d="M8 12h8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                </div>
+                <div className="mobile-kpi-title">일반 스캔</div>
                 <div className="mobile-kpi-value">{dailyScans}건</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--blue" />
               </div>
               <div className="mobile-kpi-card">
+                <div className="mobile-kpi-icon mobile-kpi-icon--approval" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <path d="M8 12l2.5 2.5L16 9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                </div>
                 <div className="mobile-kpi-title">승인 대기</div>
                 <div className="mobile-kpi-value">{metrics.approvals}건</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--red" />
@@ -651,6 +690,20 @@ export default function Page() {
             <div className="mobile-card">
               <div className="mobile-card__title">스캔 통계</div>
               <svg viewBox="0 0 100 60" className="mobile-linechart" aria-hidden="true">
+                <defs>
+                  <linearGradient id="residentArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
+                  </linearGradient>
+                  <linearGradient id="targetArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d="M0 20 H100" className="chart-grid" />
+                <path d="M0 40 H100" className="chart-grid" />
+                <path d={getAreaPath(scanTrend.map((item) => item.resident))} className="line-area line-area--resident" />
+                <path d={getAreaPath(scanTrend.map((item) => item.target))} className="line-area line-area--target" />
                 <path d={getLinePath(scanTrend.map((item) => item.resident))} className="line-resident" />
                 <path d={getLinePath(scanTrend.map((item) => item.target))} className="line-target" />
               </svg>
