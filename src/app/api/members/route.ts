@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getProfileFromRequest } from "@/lib/auth/session";
 import { requireAdminRole, requireAuth, requireEditMode } from "@/lib/auth/guards";
@@ -129,13 +129,13 @@ export async function PUT(req: Request) {
       .eq("id", memberId)
       .single();
     if (!target?.complex_id || target.complex_id !== profile!.complex_id) {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
     }
     if (profile!.role === "SUB" && profile!.building_id && target.building_id !== profile!.building_id) {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
     }
     if (complexId && complexId !== profile!.complex_id) {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
     }
   }
 
@@ -165,7 +165,7 @@ export async function PUT(req: Request) {
       .eq("id", nextBuildingId)
       .single();
     if (!buildingRow || buildingRow.complex_id !== scopeComplexId) {
-      return NextResponse.json({ error: "동 정보가 올바르지 않습니다." }, { status: 400 });
+      return NextResponse.json({ error: "단지 정보가 일치하지 않습니다." }, { status: 400 });
     }
   }
 
@@ -176,7 +176,7 @@ export async function PUT(req: Request) {
       .eq("id", nextUnitId)
       .single();
     if (!unitRow || unitRow.building_id !== nextBuildingId) {
-      return NextResponse.json({ error: "호수 정보가 올바르지 않습니다." }, { status: 400 });
+      return NextResponse.json({ error: "동 정보가 일치하지 않습니다." }, { status: 400 });
     }
   }
 
@@ -206,7 +206,7 @@ export async function PUT(req: Request) {
         .single();
       const qrComplexId = qrRow?.vehicles?.[0]?.profiles?.[0]?.complex_id ?? null;
       if (!qrComplexId || qrComplexId !== profile!.complex_id) {
-        return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+        return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
       }
     }
     const expiresAtValue = qrExpiresAt ? new Date(qrExpiresAt).toISOString() : null;
@@ -262,7 +262,7 @@ export async function DELETE(req: Request) {
       .eq("id", memberId)
       .single();
     if (!target?.complex_id || target.complex_id !== profile!.complex_id) {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
     }
   }
 

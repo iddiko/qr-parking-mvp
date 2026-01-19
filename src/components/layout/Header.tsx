@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { UserIcon } from "../icons/UserIcon";
@@ -19,7 +19,7 @@ type ComplexSelectionDetail = {
   name?: string;
 };
 
-export function Header({ complexName = "??", showEditToggle = true, onMenuToggle }: HeaderProps) {
+export function Header({ complexName = "단지", showEditToggle = true, onMenuToggle }: HeaderProps) {
   const { enabled, setEnabled } = useEditMode();
   const [name, setName] = useState(complexName);
   const [showToggle, setShowToggle] = useState(showEditToggle);
@@ -133,31 +133,31 @@ export function Header({ complexName = "??", showEditToggle = true, onMenuToggle
   return (
     <header className="app-header">
       <div className="app-header__brand">
-        <button className="menu-toggle menu-toggle--header" type="button" aria-label="?? ??" onClick={onMenuToggle}>
+        <button className="menu-toggle menu-toggle--header" type="button" aria-label="메뉴 열기" onClick={onMenuToggle}>
           <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
             <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
         </button>
         <div className={`app-logo ${logoUrl ? "app-logo--image" : ""}`}>
-          {logoUrl ? <img src={logoUrl} alt="??" /> : "QR"}
+          {logoUrl ? <img src={logoUrl} alt="로고" /> : "QR"}
         </div>
         <div className="app-header__titles">
-          <div className="app-title">QR ?? MVP</div>
-          <div className="app-subtitle">{name || "?? ??"}</div>
+          <div className="app-title">QR Parking MVP</div>
+          <div className="app-subtitle">{name || "단지"}</div>
         </div>
       </div>
       <div className="app-header__right">
         {showToggle ? (
           <label className="edit-toggle">
             <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-            ?? ??
+            수정 모드
           </label>
         ) : null}
         <div className="profile-menu" ref={menuRef}>
           <button
             className="icon-button"
             type="button"
-            aria-label="?????"
+            aria-label="마이페이지 열기"
             aria-expanded={menuOpen}
             aria-controls="profile-menu-panel"
             onClick={() => setMenuOpen((prev) => !prev)}
@@ -174,4 +174,3 @@ export function Header({ complexName = "??", showEditToggle = true, onMenuToggle
     </header>
   );
 }
-

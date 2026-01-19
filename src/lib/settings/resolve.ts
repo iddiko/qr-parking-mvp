@@ -1,5 +1,5 @@
-import type { MenuToggles } from "./types";
-import { defaultMenuToggles } from "./defaults";
+﻿import type { MenuToggles, MenuOrder, MenuLabels } from "./types";
+import { defaultMenuLabels, defaultMenuOrder, defaultMenuToggles } from "./defaults";
 
 export function resolveMenuToggles(input?: Partial<MenuToggles> | null): MenuToggles {
   const guard = { ...defaultMenuToggles.guard, ...(input?.guard ?? {}) };
@@ -35,5 +35,32 @@ export function resolveMenuToggles(input?: Partial<MenuToggles> | null): MenuTog
     guard,
     resident,
     sub,
+  };
+}
+
+const normalizeOrder = (order: unknown, fallback: string[]) => {
+  const list = Array.isArray(order) ? order.filter((key) => typeof key === "string") : [];
+  const unique = Array.from(new Set(list)).filter((key) => fallback.includes(key));
+  const missing = fallback.filter((key) => !unique.includes(key));
+  return [...unique, ...missing];
+};
+
+export function resolveMenuOrder(input?: Partial<MenuOrder> | null): MenuOrder {
+  return {
+    super: normalizeOrder(input?.super, defaultMenuOrder.super),
+    main: normalizeOrder(input?.main, defaultMenuOrder.main),
+    sub: normalizeOrder(input?.sub, defaultMenuOrder.sub),
+    guard: normalizeOrder(input?.guard, defaultMenuOrder.guard),
+    resident: normalizeOrder(input?.resident, defaultMenuOrder.resident),
+  };
+}
+
+export function resolveMenuLabels(input?: Partial<MenuLabels> | null): MenuLabels {
+  return {
+    super: { ...defaultMenuLabels.super, ...(input?.super ?? {}) },
+    main: { ...defaultMenuLabels.main, ...(input?.main ?? {}) },
+    sub: { ...defaultMenuLabels.sub, ...(input?.sub ?? {}) },
+    guard: { ...defaultMenuLabels.guard, ...(input?.guard ?? {}) },
+    resident: { ...defaultMenuLabels.resident, ...(input?.resident ?? {}) },
   };
 }

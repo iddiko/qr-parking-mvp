@@ -184,6 +184,70 @@ table {
   justify-content: flex-end;
 }
 
+.menu-order-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.menu-order-grid--row {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.menu-order-group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+
+.menu-order-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.menu-order-list {
+  display: grid;
+  gap: 8px;
+}
+
+.menu-order-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--bg) 60%, white);
+  font-size: 13px;
+}
+
+.menu-order-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.menu-order-actions button {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.menu-order-label {
+  width: 100%;
+  max-width: 160px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 13px;
+}
+
 th,
 td {
   padding: 10px 12px;

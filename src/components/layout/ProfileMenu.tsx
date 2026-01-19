@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { supabaseClient } from "@/lib/supabase/client";
 import { menuConfig, type MenuItem } from "../nav/menu.config";
-import { resolveMenuToggles } from "@/lib/settings/resolve";
+import { resolveMenuLabels, resolveMenuOrder, resolveMenuToggles } from "@/lib/settings/resolve";
 
 type ProfileRow = {
   id: string;
@@ -19,6 +19,8 @@ type ProfileRow = {
 
 type SettingsRow = {
   menu_toggles: Record<string, Record<string, boolean>>;
+  menu_order?: Record<string, string[]>;
+  menu_labels?: Record<string, Record<string, string>>;
 };
 
 type ComplexRow = {
@@ -217,6 +219,16 @@ const MenuIcon = ({ iconKey }: { iconKey: string }) => {
   return menuIcons[iconKey] ?? menuIcons.dashboard;
 };
 
+const orderMenuItems = (items: MenuItem[], order: string[], labels: Record<string, string>) => {
+  const map = new Map(items.map((item) => [item.key, item] as const));
+  const sorted = order.map((key) => map.get(key)).filter(Boolean) as MenuItem[];
+  const remaining = items.filter((item) => !order.includes(item.key));
+  return [...sorted, ...remaining].map((item) => ({
+    ...item,
+    label: labels[item.key] ?? item.label,
+  }));
+};
+
 export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileMenuContentProps) {
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -357,14 +369,18 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
         if (responseSettings.ok) {
           const settingsData = await responseSettings.json();
           if (settingsData?.menu_toggles) {
-            setSettings({ menu_toggles: settingsData.menu_toggles });
+            setSettings({
+              menu_toggles: settingsData.menu_toggles,
+              menu_order: settingsData.menu_order,
+              menu_labels: settingsData.menu_labels,
+            });
             return;
           }
         }
       }
       const { data: settingsData } = await supabaseClient
         .from("settings")
-        .select("menu_toggles")
+        .select("menu_toggles, menu_order, menu_labels")
         .eq("complex_id", profileData.complex_id)
         .single();
       if (settingsData) {
@@ -384,24 +400,31 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     if (!profile) {
       return [];
     }
+    const orders = resolveMenuOrder(settings?.menu_order as any);
+    const labels = resolveMenuLabels(settings?.menu_labels as any);
     if (profile.role === "GUARD") {
       const toggles = resolveMenuToggles(settings?.menu_toggles as any).guard;
-      return dropMyPage(menuConfig.guard.filter((item) => toggles[item.key] !== false));
+      const ordered = orderMenuItems(menuConfig.guard, orders.guard, labels.guard);
+      return dropMyPage(ordered.filter((item) => toggles[item.key] !== false));
     }
     if (profile.role === "RESIDENT") {
       const toggles = resolveMenuToggles(settings?.menu_toggles as any).resident;
-      return dropMyPage(menuConfig.resident.filter((item) => toggles[item.key] !== false));
+      const ordered = orderMenuItems(menuConfig.resident, orders.resident, labels.resident);
+      return dropMyPage(ordered.filter((item) => toggles[item.key] !== false));
     }
     const adminItems = menuConfig.admin;
     if (profile.role === "MAIN") {
       const toggles = resolveMenuToggles(settings?.menu_toggles as any).main;
-      return dropMyPage(filterAdminMenu(adminItems, toggles));
+      const ordered = orderMenuItems(adminItems, orders.main, labels.main);
+      return dropMyPage(filterAdminMenu(ordered, toggles));
     }
     if (profile.role === "SUB") {
       const toggles = resolveMenuToggles(settings?.menu_toggles as any).sub;
-      return dropMyPage(filterAdminMenu(adminItems, toggles));
+      const ordered = orderMenuItems(adminItems, orders.sub, labels.sub);
+      return dropMyPage(filterAdminMenu(ordered, toggles));
     }
-    return dropMyPage(adminItems);
+    const ordered = orderMenuItems(adminItems, orders.super, labels.super);
+    return dropMyPage(ordered);
   }, [profile, settings]);
 
   const mypageHref =
@@ -433,7 +456,11 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     return "-";
   })();
 
-  const qrHint = qrDataUrl ? null : profile?.role === "RESIDENT" ? "QR이 아직 없습니다." : "QR 정보가 없습니다.";
+  const qrHint = qrDataUrl
+    ? null
+    : profile?.role === "RESIDENT"
+    ? "QR 이미지가 없습니다."
+    : "QR 정보가 없습니다.";
 
   const onLogout = async () => {
     await supabaseClient.auth.signOut();
@@ -462,7 +489,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     );
   };
 
-  const roleLabel = profile ? roleTitle[profile.role] : "게스트";
+  const roleLabel = profile ? roleTitle[profile.role] : "역할 없음";
 
   return (
     <div className={variant === "popover" ? "profile-menu-content" : ""}>
@@ -522,14 +549,15 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
           </div>
           <Link className="profile-menu__edit" href={mypageHref} onClick={onNavigate}>
             내 정보 수정
-          </Link>          <Link className="profile-menu__edit" href={notificationsHref} onClick={onNavigate}>
+          </Link>
+          <Link className="profile-menu__edit" href={notificationsHref} onClick={onNavigate}>
             <span className="profile-menu__icon" aria-hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M6 9a6 6 0 1 1 12 0c0 6 2 6 2 6H4s2 0 2-6Z" />
                 <path d="M10 19a2 2 0 0 0 4 0" />
               </svg>
             </span>
-            ?? ??
+            알림
           </Link>
         </div>
       ) : null}
@@ -559,6 +587,3 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     </div>
   );
 }
-
-
-

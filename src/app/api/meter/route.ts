@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getProfileFromRequest } from "@/lib/auth/session";
 import { requireAdminRole, requireAuth, requireEditMode } from "@/lib/auth/guards";
@@ -32,10 +32,17 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
       }
     }
+    const targetComplexId =
+      profile!.role === "SUPER"
+        ? url.searchParams.get("complex_id") ?? profile!.complex_id
+        : profile!.complex_id;
+    if (!targetComplexId) {
+      return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+    }
     const { data, error } = await supabaseAdmin
       .from("meter_cycles")
       .select("id, title, start_date, end_date, status, created_at")
-      .eq("complex_id", profile!.complex_id)
+      .eq("complex_id", targetComplexId)
       .order("created_at", { ascending: false });
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -178,11 +185,16 @@ export async function POST(req: Request) {
     const title = body.title as string;
     const startDate = body.start_date as string | null;
     const endDate = body.end_date as string | null;
+    const targetComplexId =
+      profile!.role === "SUPER" ? (body.complex_id as string | undefined) ?? profile!.complex_id : profile!.complex_id;
+    if (!targetComplexId) {
+      return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+    }
     if (!title) {
       return NextResponse.json({ error: "title required" }, { status: 400 });
     }
     const { error } = await supabaseAdmin.from("meter_cycles").insert({
-      complex_id: profile!.complex_id,
+      complex_id: targetComplexId,
       title,
       start_date: startDate,
       end_date: endDate,

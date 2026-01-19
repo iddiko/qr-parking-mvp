@@ -121,7 +121,7 @@ const ddayLabel = (expiresAt: string | null) => {
   const diffMs = new Date(expiresAt).getTime() - Date.now();
   const diffDays = Math.ceil(diffMs / 86400000);
   if (diffDays < 0) {
-    return "만료됨";
+    return "만료";
   }
   if (diffDays === 0) {
     return "D-day";
@@ -222,7 +222,7 @@ export default function Page() {
     }
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const token = sessionData.session?.access_token ?? "";
-    const response = await fetch(`/api/buildings?complex_id=${complexId}`, {
+    const response = await fetch(`/api/buildings?complex_id=${complexId}` , {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
@@ -240,7 +240,7 @@ export default function Page() {
     }
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const token = sessionData.session?.access_token ?? "";
-    const response = await fetch(`/api/units?building_id=${buildingId}`, {
+    const response = await fetch(`/api/units?building_id=${buildingId}` , {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
@@ -269,7 +269,7 @@ export default function Page() {
       params.set("role", filterRole);
     }
     const query = params.toString();
-    const response = await fetch(`/api/members${query ? `?${query}` : ""}`, {
+    const response = await fetch(`/api/members${query ? `?${query}` : ""}` , {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
@@ -435,7 +435,7 @@ export default function Page() {
   };
 
   const remove = async (memberId: string) => {
-    if (!confirm("회원을 삭제하시겠습니까?")) {
+    if (!confirm("정말 삭제하시겠습니까?")) {
       return;
     }
     setStatus("");
@@ -452,10 +452,10 @@ export default function Page() {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "회원 삭제에 실패했습니다.");
+      setStatus(data.error ?? "회원 정보를 삭제하지 못했습니다.");
       return;
     }
-    setStatus("회원이 삭제되었습니다.");
+    setStatus("회원 정보가 삭제되었습니다.");
     loadMembers();
   };
 
@@ -498,7 +498,7 @@ export default function Page() {
               <option value="">전체</option>
               {buildings.map((building) => (
                 <option key={building.id} value={building.id}>
-                  {building.code} ({building.name})
+                  {building.code}동 ({building.name})
                 </option>
               ))}
             </select>
@@ -595,9 +595,9 @@ export default function Page() {
               </div>
               <div className="members-modal__body">
                 <div className="members-modal__section">
-                  <div className="members-modal__section-title">기본 정보</div>
+                  <div className="members-modal__section-title">회원 정보</div>
                   <label>
-                    역할
+                    레벨
                     {editingId ? (
                       <select
                         value={form.role}
@@ -688,7 +688,7 @@ export default function Page() {
                         <option value="">전체</option>
                         {buildings.map((building) => (
                           <option key={building.id} value={building.id}>
-                            {building.code} ({building.name})
+                            {building.code}동 ({building.name})
                           </option>
                         ))}
                       </select>
@@ -745,7 +745,7 @@ export default function Page() {
                       qrThumbs[selectedRow.member.id] ? (
                         <img src={qrThumbs[selectedRow.member.id]} alt="QR" />
                       ) : (
-                        <span className="muted">QR 이미지를 불러오는 중입니다.</span>
+                        <span className="muted">QR 이미지를 불러올 수 없습니다.</span>
                       )
                     ) : (
                       <span className="muted">QR 없음</span>
@@ -766,7 +766,7 @@ export default function Page() {
                   </>
                 ) : (
                   <button type="button" onClick={() => openModal(selectedRow.member, true)}>
-                    수정 시작
+                    수정 열기
                   </button>
                 )}
               </div>

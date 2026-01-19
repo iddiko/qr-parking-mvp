@@ -1,8 +1,19 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabaseClient } from "@/lib/supabase/client";
 import { MenuGuard } from "@/components/layout/MenuGuard";
+
+type Role = "SUPER" | "MAIN" | "SUB" | "GUARD" | "RESIDENT";
+
+type ProfileRow = {
+  email: string | null;
+  building_id: string | null;
+  unit_id: string | null;
+  complexes?: { name: string | null }[] | { name: string | null } | null;
+  buildings?: { code: string | null }[] | { code: string | null } | null;
+  units?: { code: string | null }[] | { code: string | null } | null;
+};
 
 type QrRow = {
   id: string;
@@ -14,14 +25,17 @@ type QrRow = {
     plate: string | null;
     vehicle_type: string | null;
     owner_profile_id: string | null;
-    profiles?: {
-      email: string | null;
-      building_id: string | null;
-      unit_id: string | null;
-      buildings?: { code: string | null }[] | null;
-      units?: { code: string | null }[] | null;
-    }[];
+    profiles?: ProfileRow[];
   }[];
+};
+
+type VehicleRow = {
+  id: string;
+  plate: string | null;
+  vehicle_type: string | null;
+  owner_profile_id: string | null;
+  profiles?: ProfileRow[] | ProfileRow | null;
+  qrs?: { id: string; status: string; code: string; created_at: string; expires_at: string | null }[];
 };
 
 type BuildingRow = {
@@ -42,10 +56,10 @@ const qrStatusLabel = (status?: string) => {
 
 const vehicleTypeLabel = (value?: string | null) => {
   if (value === "EV") {
-    return "전기차";
+    return "전기";
   }
   if (value === "ICE") {
-    return "내연차";
+    return "내연";
   }
   return value ?? "-";
 };
@@ -66,33 +80,134 @@ const ddayLabel = (value?: string | null) => {
   return `D-${diffDays}`;
 };
 
+const formatDateTime = (value?: string) => {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+};
+
+const pickFirst = <T,>(value?: T | T[] | null) => {
+  if (!value) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+  return value;
+};
+
 export default function Page() {
   const [rows, setRows] = useState<QrRow[]>([]);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [primaryPhones, setPrimaryPhones] = useState<Record<string, string>>({});
   const [buildingFilter, setBuildingFilter] = useState("all");
+  const [role, setRole] = useState<Role | null>(null);
+  const [selectedComplexId, setSelectedComplexId] = useState("");
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) {
+        return;
+      }
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("role, complex_id")
+        .eq("id", userId)
+        .single();
+      if (!profile) {
+        return;
+      }
+      setRole(profile.role as Role);
+      if (profile.role === "SUPER") {
+        const storedId = localStorage.getItem("selectedComplexId") ?? "";
+        setSelectedComplexId(storedId || profile.complex_id || "");
+      } else {
+        setSelectedComplexId(profile.complex_id ?? "");
+      }
+    };
+    loadProfile();
+  }, []);
+
+  useEffect(() => {
+    if (role !== "SUPER") {
+      return;
+    }
+    const handleSelection = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string }>).detail;
+      setSelectedComplexId(detail?.id ?? "");
+    };
+    window.addEventListener("complexSelectionChanged", handleSelection as EventListener);
+    return () => window.removeEventListener("complexSelectionChanged", handleSelection as EventListener);
+  }, [role]);
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabaseClient
-        .from("qrs")
+      let vehicleQuery = supabaseClient
+        .from("vehicles")
         .select(
-          "id, status, code, created_at, expires_at, vehicles(plate, vehicle_type, owner_profile_id, profiles(email, building_id, unit_id, buildings(code), units(code)))"
-        )
-        .order("created_at", { ascending: false });
-      if (data) {
-        setRows(data as unknown as QrRow[]);
+          "id, plate, vehicle_type, owner_profile_id, profiles(email, building_id, unit_id, complexes(name), buildings(code), units(code)), qrs(id, status, code, created_at, expires_at)"
+        );
+
+      if (role === "SUPER" && selectedComplexId) {
+        vehicleQuery = vehicleQuery.eq("profiles.complex_id", selectedComplexId);
       }
 
-      const { data: buildingData } = await supabaseClient
-        .from("buildings")
-        .select("id, code, name")
-        .order("code", { ascending: true });
+      const { data: vehicleData } = await vehicleQuery;
+      const vehicles = (vehicleData ?? []) as VehicleRow[];
+      const nextRows: QrRow[] = [];
+      vehicles.forEach((vehicle) => {
+        const profiles = vehicle.profiles
+          ? Array.isArray(vehicle.profiles)
+            ? vehicle.profiles
+            : [vehicle.profiles]
+          : [];
+        (vehicle.qrs ?? []).forEach((qr) => {
+          nextRows.push({
+            id: qr.id,
+            status: qr.status,
+            code: qr.code,
+            created_at: qr.created_at,
+            expires_at: qr.expires_at,
+            vehicles: [
+              {
+                plate: vehicle.plate,
+                vehicle_type: vehicle.vehicle_type,
+                owner_profile_id: vehicle.owner_profile_id,
+                profiles,
+              },
+            ],
+          });
+        });
+      });
+
+      nextRows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      setRows(nextRows);
+
+      let buildingQuery = supabaseClient.from("buildings").select("id, code, name").order("code", { ascending: true });
+      if (role === "SUPER" && selectedComplexId) {
+        buildingQuery = buildingQuery.eq("complex_id", selectedComplexId);
+      }
+      const { data: buildingData } = await buildingQuery;
       setBuildings((buildingData ?? []) as BuildingRow[]);
 
       const ownerIds = Array.from(
         new Set(
-          (data ?? [])
+          nextRows
             .map((row) => row.vehicles?.[0]?.owner_profile_id ?? null)
             .filter((value): value is string => Boolean(value))
         )
@@ -110,10 +225,12 @@ export default function Page() {
           }
         });
         setPrimaryPhones(phoneMap);
+      } else {
+        setPrimaryPhones({});
       }
     };
     load();
-  }, []);
+  }, [role, selectedComplexId]);
 
   const qrCountMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -143,12 +260,12 @@ export default function Page() {
         <h1 className="page-title">주차 QR</h1>
         <div style={{ maxWidth: "280px", marginBottom: "12px" }}>
           <label>
-            동 선택
+            동 필터
             <select value={buildingFilter} onChange={(event) => setBuildingFilter(event.target.value)}>
               <option value="all">전체</option>
               {buildings.map((building) => (
                 <option key={building.id} value={building.id}>
-                  {(building.code ?? building.name ?? "동") + "동"}
+                  {(building.code ?? building.name ?? "-") + "동"}
                 </option>
               ))}
             </select>
@@ -158,7 +275,7 @@ export default function Page() {
           <thead>
             <tr>
               <th align="left">입주민 이메일</th>
-              <th align="left">전화번호(대표번호)</th>
+              <th align="left">전화번호(대표)</th>
               <th align="left">동</th>
               <th align="left">호수</th>
               <th align="left">차종</th>
@@ -174,8 +291,8 @@ export default function Page() {
               const vehicle = row.vehicles?.[0];
               const profile = vehicle?.profiles?.[0];
               const ownerId = vehicle?.owner_profile_id ?? "";
-              const buildingCode = profile?.buildings?.[0]?.code ?? "-";
-              const unitCode = profile?.units?.[0]?.code ?? "-";
+              const building = pickFirst(profile?.buildings);
+              const unit = pickFirst(profile?.units);
               const email = profile?.email ?? "-";
               const plate = vehicle?.plate ?? "-";
               const phone = ownerId ? primaryPhones[ownerId] ?? "-" : "-";
@@ -184,13 +301,13 @@ export default function Page() {
                 <tr key={row.id}>
                   <td>{email}</td>
                   <td>{phone}</td>
-                  <td>{buildingCode}</td>
-                  <td>{unitCode}</td>
+                  <td>{building?.code ? `${building.code}동` : "-"}</td>
+                  <td>{unit?.code ? `${unit.code}호` : "-"}</td>
                   <td>{vehicleTypeLabel(vehicle?.vehicle_type)}</td>
                   <td>{plate}</td>
                   <td>{qrStatusLabel(row.status)}</td>
                   <td>{qrCount}</td>
-                  <td>{new Date(row.created_at).toLocaleString("ko-KR")}</td>
+                  <td>{formatDateTime(row.created_at)}</td>
                   <td>{ddayLabel(row.expires_at)}</td>
                 </tr>
               );
