@@ -161,6 +161,21 @@ export async function POST(req: Request) {
   const body = await req.json();
   const action = body.action;
 
+  const ensureCycleAccess = async (cycleId: string) => {
+    const { data: cycleData, error } = await supabaseAdmin
+      .from("meter_cycles")
+      .select("id, complex_id")
+      .eq("id", cycleId)
+      .single();
+    if (error || !cycleData) {
+      return { ok: false, status: 404, error: "검침 주기를 찾을 수 없습니다." };
+    }
+    if (profile!.role !== "SUPER" && cycleData.complex_id !== profile!.complex_id) {
+      return { ok: false, status: 403, error: "접근 권한이 없습니다." };
+    }
+    return { ok: true, data: cycleData };
+  };
+
   if (action === "create_cycle") {
     const adminCheck = requireAdminRole(profile);
     if (!adminCheck.ok) {
@@ -200,6 +215,94 @@ export async function POST(req: Request) {
       end_date: endDate,
       status: "OPEN",
     });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "update_cycle") {
+    const adminCheck = requireAdminRole(profile);
+    if (!adminCheck.ok) {
+      return NextResponse.json({ error: adminCheck.message }, { status: adminCheck.status });
+    }
+    if (profile!.role === "SUB") {
+      const toggleCheck = await requireMenuToggle(profile!, "sub", "meter.cycles");
+      if (!toggleCheck.ok) {
+        return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+      }
+    }
+    if (profile!.role === "MAIN") {
+      const toggleCheck = await requireMenuToggle(profile!, "main", "meter.cycles");
+      if (!toggleCheck.ok) {
+        return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+      }
+    }
+    const editCheck = requireEditMode(profile!, req);
+    if (!editCheck.ok) {
+      return NextResponse.json({ error: editCheck.message }, { status: editCheck.status });
+    }
+    const id = body.id as string;
+    const title = body.title as string;
+    const startDate = body.start_date as string | null;
+    const endDate = body.end_date as string | null;
+    const status = body.status as string;
+    if (!id) {
+      return NextResponse.json({ error: "cycle id required" }, { status: 400 });
+    }
+    const accessCheck = await ensureCycleAccess(id);
+    if (!accessCheck.ok) {
+      return NextResponse.json({ error: accessCheck.error }, { status: accessCheck.status });
+    }
+    const allowedStatuses = new Set(["OPEN", "HOLD", "CLOSED", "OTHER"]);
+    if (status && !allowedStatuses.has(status)) {
+      return NextResponse.json({ error: "invalid status" }, { status: 400 });
+    }
+    const { error } = await supabaseAdmin
+      .from("meter_cycles")
+      .update({
+        title,
+        start_date: startDate,
+        end_date: endDate,
+        status,
+      })
+      .eq("id", id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "delete_cycle") {
+    const adminCheck = requireAdminRole(profile);
+    if (!adminCheck.ok) {
+      return NextResponse.json({ error: adminCheck.message }, { status: adminCheck.status });
+    }
+    if (profile!.role === "SUB") {
+      const toggleCheck = await requireMenuToggle(profile!, "sub", "meter.cycles");
+      if (!toggleCheck.ok) {
+        return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+      }
+    }
+    if (profile!.role === "MAIN") {
+      const toggleCheck = await requireMenuToggle(profile!, "main", "meter.cycles");
+      if (!toggleCheck.ok) {
+        return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+      }
+    }
+    const editCheck = requireEditMode(profile!, req);
+    if (!editCheck.ok) {
+      return NextResponse.json({ error: editCheck.message }, { status: editCheck.status });
+    }
+    const id = body.id as string;
+    if (!id) {
+      return NextResponse.json({ error: "cycle id required" }, { status: 400 });
+    }
+    const accessCheck = await ensureCycleAccess(id);
+    if (!accessCheck.ok) {
+      return NextResponse.json({ error: accessCheck.error }, { status: accessCheck.status });
+    }
+    const { error } = await supabaseAdmin.from("meter_cycles").delete().eq("id", id);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

@@ -197,11 +197,11 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "정보를 저장할 수 없습니다.");
+      setStatus(data.error ?? "내 정보 저장에 실패했습니다.");
       setSaving(false);
       return;
     }
-    setStatus("정보가 저장되었습니다.");
+    setStatus("내 정보가 저장되었습니다.");
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("profileUpdated"));
     }
@@ -219,11 +219,11 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "요청을 처리할 수 없습니다.");
+      setStatus(data.error ?? "요청 처리에 실패했습니다.");
       return;
     }
     setStatus(
-      type === "REISSUE" ? "QR 재발행 요청이 처리되었습니다." : "QR 추가 발행 요청이 처리되었습니다."
+      type === "REISSUE" ? "QR 재발행 요청이 접수되었습니다." : "QR 추가 발행 요청이 접수되었습니다."
     );
     await load();
   };
@@ -237,7 +237,7 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "QR 추가 발행을 처리할 수 없습니다.");
+      setStatus(data.error ?? "QR 추가 발행에 실패했습니다.");
       return;
     }
     setStatus("QR 추가 발행이 완료되었습니다.");
@@ -323,7 +323,7 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
               checked={hasVehicle}
               onChange={(event) => setHasVehicle(event.target.checked)}
             />
-            차량 정보를 입력합니다
+            <span style={{ whiteSpace: "nowrap" }}>차량 정보를 입력합니다</span>
           </label>
         </div>
         {hasVehicle ? (
@@ -350,12 +350,7 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
         {phones.length === 0 ? <div className="muted">등록된 전화번호가 없습니다.</div> : null}
         {phones.map((item) => (
           <div key={item.id} className="profile-phone-row">
-            <input
-              type="radio"
-              checked={item.is_primary}
-              onChange={() => setPrimary(item.id)}
-              aria-label="대표번호"
-            />
+            <input type="radio" checked={item.is_primary} onChange={() => setPrimary(item.id)} aria-label="대표번호" />
             <input
               value={item.phone}
               onChange={(event) => updatePhone(item.id, event.target.value)}
@@ -379,12 +374,12 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
         {qrs.map((qr) => (
           <div key={qr.id} className="qr-row">
             <div className="qr-preview">
-              {qrImages[qr.id] ? <img src={qrImages[qr.id]} alt="QR" /> : <div className="muted">QR 준비중</div>}
+              {qrImages[qr.id] ? <img src={qrImages[qr.id]} alt="QR" /> : <div className="muted">QR 생성 중</div>}
             </div>
             <div className="qr-info">
               <div>상태: {qr.status === "ACTIVE" ? "활성" : "비활성"}</div>
               <div>D-day: {ddayLabel(qr.expires_at)}</div>
-              <div className="muted">발급일: {new Date(qr.created_at).toLocaleString()}</div>
+              <div className="muted">발행일: {new Date(qr.created_at).toLocaleString()}</div>
               <button type="button" onClick={() => printQr(qr.id)} disabled={!qrImages[qr.id]}>
                 QR 인쇄
               </button>
@@ -405,7 +400,7 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
       </div>
 
       <button type="button" onClick={onSave} disabled={saving}>
-        저장
+        내 정보 저장
       </button>
       {status ? <div className="muted">{status}</div> : null}
       {showLogout ? (

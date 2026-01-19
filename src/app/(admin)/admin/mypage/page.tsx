@@ -38,7 +38,7 @@ export default function Page() {
       const { data: userData } = await supabaseClient.auth.getUser();
       const userId = userData.user?.id ?? "";
       if (!userId) {
-        setProfileError("세션을 확인할 수 없습니다.");
+        setProfileError("로그인 정보를 확인할 수 없습니다.");
         return;
       }
       const { data: profileRow, error } = await supabaseClient
@@ -47,7 +47,7 @@ export default function Page() {
         .eq("id", userId)
         .maybeSingle();
       if (error || !profileRow) {
-        setProfileError("프로필을 불러오지 못했습니다.");
+        setProfileError("프로필 정보를 불러오지 못했습니다.");
         return;
       }
       setRole(profileRow.role as ProfileRow["role"]);
@@ -57,10 +57,10 @@ export default function Page() {
 
   const onDeploy = async () => {
     if (!enabled) {
-      setDeployStatus("Edit Mode를 켜야 배포할 수 있습니다.");
+      setDeployStatus("수정 모드를 켜야 배포할 수 있습니다.");
       return;
     }
-    const confirmed = window.confirm("진짜 배포 할거야?");
+    const confirmed = window.confirm("정말 배포할까요?");
     if (!confirmed) {
       return;
     }
@@ -81,7 +81,7 @@ export default function Page() {
       setDeploying(false);
       return;
     }
-    setDeployStatus("배포 요청을 보냈습니다.");
+    setDeployStatus("배포가 시작되었습니다.");
     setDeploying(false);
   };
 
@@ -90,13 +90,11 @@ export default function Page() {
       <div className="panel-card">
         <div className="panel-card__title">배포</div>
         {profileError ? <p className="muted">{profileError}</p> : null}
-        {!profileError && role === null ? (
-          <p className="muted">권한을 확인 중입니다.</p>
-        ) : null}
+        {!profileError && role === null ? <p className="muted">권한 정보를 불러오는 중입니다.</p> : null}
         {!profileError && role !== null && !canDeploy ? (
-          <p className="muted">슈퍼관리자 전용 기능입니다.</p>
+          <p className="muted">슈퍼관리자만 배포할 수 있습니다.</p>
         ) : null}
-        <p className="muted">Edit Mode를 켠 뒤 진행하세요.</p>
+        <p className="muted">수정 모드가 켜진 상태에서만 배포됩니다.</p>
         <button type="button" onClick={onDeploy} disabled={deploying || !canDeploy || !enabled}>
           {deploying ? "배포 중..." : "배포"}
         </button>
