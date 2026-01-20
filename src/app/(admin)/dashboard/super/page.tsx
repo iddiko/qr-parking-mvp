@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ type Profile = {
   complex_id: string | null;
   building_id: string | null;
   unit?: string | null;
+  avatar_url?: string | null;
 };
 
 type ComplexRow = {
@@ -83,6 +84,7 @@ export default function Page() {
   const { enabled, setEnabled } = useEditMode();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [complexes, setComplexes] = useState<ComplexRow[]>([]);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -92,6 +94,36 @@ export default function Page() {
   const [approvals, setApprovals] = useState<ApprovalRow[]>([]);
   const [selectedComplexId, setSelectedComplexId] = useState<string>("all");
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("all");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("selectedComplexId");
+    if (saved) {
+      setSelectedComplexId(saved);
+    }
+    const handleSelection = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { complexId?: string } | undefined;
+      if (detail?.complexId) {
+        setSelectedComplexId(detail.complexId);
+      }
+    };
+    window.addEventListener("complexSelectionChanged", handleSelection as EventListener);
+    return () => window.removeEventListener("complexSelectionChanged", handleSelection as EventListener);
+  }, []);
+
+  const handleComplexChange = (value: string) => {
+    setSelectedComplexId(value);
+    if (value === "all") {
+      localStorage.removeItem("selectedComplexId");
+      localStorage.removeItem("selectedComplexName");
+    } else {
+      localStorage.setItem("selectedComplexId", value);
+      const name = complexes.find((complex) => complex.id === value)?.name;
+      if (name) {
+        localStorage.setItem("selectedComplexName", name);
+      }
+    }
+    window.dispatchEvent(new CustomEvent("complexSelectionChanged", { detail: { complexId: value } }));
+  };
 
   useEffect(() => {
     document.body.classList.add("dashboard-super");
@@ -107,16 +139,40 @@ export default function Page() {
       }
       const { data } = await supabaseClient
         .from("profiles")
-        .select("id, email, role, complex_id, building_id")
+        .select("id, email, role, complex_id, building_id, avatar_url")
         .eq("id", userId)
         .single();
       if (data) {
         const row = data as Profile;
         setProfile(row);
+        setAvatarUrl(row.avatar_url ?? null);
         setAllowed(row.role === "SUPER");
       }
     };
     load();
+  }, []);
+
+  useEffect(() => {
+    const refreshAvatar = async () => {
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) {
+        return;
+      }
+      const { data } = await supabaseClient
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", userId)
+        .single();
+      if (data) {
+        setAvatarUrl((data as { avatar_url: string | null }).avatar_url ?? null);
+      }
+    };
+    const handleProfileUpdated = () => {
+      void refreshAvatar();
+    };
+    window.addEventListener("profileUpdated", handleProfileUpdated);
+    return () => window.removeEventListener("profileUpdated", handleProfileUpdated);
   }, []);
 
   useEffect(() => {
@@ -170,6 +226,18 @@ export default function Page() {
       clearInterval(timer);
     };
   }, [allowed]);
+
+  useEffect(() => {
+    if (selectedComplexId === "all") {
+      return;
+    }
+    if (complexes.some((complex) => complex.id === selectedComplexId)) {
+      return;
+    }
+    setSelectedComplexId("all");
+    localStorage.removeItem("selectedComplexId");
+    localStorage.removeItem("selectedComplexName");
+  }, [complexes, selectedComplexId]);
 
   useEffect(() => {
     if (selectedComplexId === "all") {
@@ -387,7 +455,9 @@ export default function Page() {
         result: toResultKey(scan.result),
         plate,
         location: scan.location_label || "위치 미지정",
-        unit: profile?.building_id ? `${buildingNameById.get(profile.building_id) ?? "-"} ${profile.unit ?? ""}` : "-",
+        unit: profile?.building_id
+          ? `${buildingNameById.get(profile.building_id) ?? "-"} ${profile.unit ?? ""}`.trim()
+          : "-",
       };
     });
   }, [filteredScans, qrMap, vehicleMap, profileMap, buildingNameById]);
@@ -417,7 +487,7 @@ export default function Page() {
   };
 
   if (allowed === null) {
-    return <div className="muted">대시보드를 불러오는 중입니다.</div>;
+    return <div className="muted">로딩 중입니다.</div>;
   }
   if (!allowed) {
     return <Forbidden message="접근 권한이 없습니다." />;
@@ -435,7 +505,7 @@ export default function Page() {
             <div className="dashboard-filters">
               <label>
                 단지
-                <select value={selectedComplexId} onChange={(event) => setSelectedComplexId(event.target.value)}>
+                <select value={selectedComplexId} onChange={(event) => handleComplexChange(event.target.value)}>
                   <option value="all">전체</option>
                   {complexes.map((complex) => (
                     <option key={complex.id} value={complex.id}>
@@ -450,7 +520,8 @@ export default function Page() {
                   <option value="all">전체</option>
                   {buildingOptions.map((building) => (
                     <option key={building.id} value={building.id}>
-                      {building.code}동</option>
+                      {building.code}동
+                    </option>
                   ))}
                 </select>
               </label>
@@ -530,7 +601,7 @@ export default function Page() {
                 </svg>
               </span>
               <div className="stat-label">QR 활성</div>
-              <div className="stat-value">{metrics.qrActive}개</div>
+              <div className="stat-value">{metrics.qrActive}?</div>
             </div>
             <div className="stat-card">
               <span className="stat-icon">
@@ -599,7 +670,7 @@ export default function Page() {
           <div className="mobile-appbar">
             <button type="button" className="mobile-appbar__back" onClick={() => router.back()} aria-label="뒤로가기">
               <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-                <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
               </svg>
             </button>
             <div className="mobile-appbar__title">QR Parking MVP</div>
@@ -609,18 +680,23 @@ export default function Page() {
               onClick={() => router.push("/admin/mypage")}
               aria-label="마이페이지"
             >
-              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-                <circle cx="12" cy="8" r="3.2" />
-                <path d="M4 20c1.6-4.2 6.3-6 8-6s6.4 1.8 8 6" />
-              </svg>
+              {avatarUrl ? (
+                <img className="mobile-appbar__avatar" src={avatarUrl} alt="프로필 이미지" />
+              ) : (
+                <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M7 18c1.4-2.2 3.8-3.5 5-3.5s3.6 1.3 5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                </svg>
+              )}
             </button>
           </div>
 
           <div className="mobile-filterbar">
             <label className="mobile-filterbar__select">
-              <span>전체 단지</span>
-              <select value={selectedComplexId} onChange={(event) => setSelectedComplexId(event.target.value)}>
-                <option value="all">전체</option>
+              
+              <select value={selectedComplexId} onChange={(event) => handleComplexChange(event.target.value)}>
+                <option value="all">전체 단지</option>
                 {complexes.map((complex) => (
                   <option key={complex.id} value={complex.id}>
                     {complex.name}
@@ -647,7 +723,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">총 회원</div>
-                <div className="mobile-kpi-value">{metrics.totalMembers}명</div>
+                <div className="mobile-kpi-value">{metrics.totalMembers}?</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--rose" />
               </div>
               <div className="mobile-kpi-card">
@@ -660,7 +736,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">활성 QR</div>
-                <div className="mobile-kpi-value">{metrics.qrActive}개</div>
+                <div className="mobile-kpi-value">{metrics.qrActive}?</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--amber" />
               </div>
               <div className="mobile-kpi-card">
@@ -671,7 +747,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">일반 스캔</div>
-                <div className="mobile-kpi-value">{dailyScans}건</div>
+                <div className="mobile-kpi-value">{dailyScans}?</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--blue" />
               </div>
               <div className="mobile-kpi-card">
@@ -682,7 +758,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">승인 대기</div>
-                <div className="mobile-kpi-value">{metrics.approvals}건</div>
+                <div className="mobile-kpi-value">{metrics.approvals}?</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--red" />
               </div>
             </div>
@@ -717,7 +793,7 @@ export default function Page() {
               <div className="mobile-card__title">최근 스캔</div>
               <div className="mobile-scan-list">
                 {recentScans.length === 0 ? (
-                  <div className="muted">최근 스캔 기록이 없습니다.</div>
+                  <div className="muted">최근 스캔이 없습니다.</div>
                 ) : (
                   recentScans.map((scan) => (
                     <div key={scan.id} className="mobile-scan-row">
@@ -755,7 +831,7 @@ export default function Page() {
               </svg>
               <span>회원관리</span>
             </button>
-            <button type="button" className="mobile-tabbar__item" onClick={() => router.push("/settings")}> 
+            <button type="button" className="mobile-tabbar__item mobile-tabbar__item--settings" onClick={() => router.push("/settings")}> 
               <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
                 <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M17 7l2.1-2.1" fill="none" stroke="currentColor" strokeWidth="1.6" />

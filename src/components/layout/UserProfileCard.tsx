@@ -20,6 +20,7 @@ type ProfileRow = {
   building_id: string | null;
   unit_id: string | null;
   has_vehicle: boolean | null;
+  avatar_url: string | null;
 };
 
 type ComplexRow = {
@@ -93,6 +94,9 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
   const [vehicleType, setVehicleType] = useState("EV");
   const [qrs, setQrs] = useState<QrRow[]>([]);
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarStatus, setAvatarStatus] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const load = async () => {
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -105,6 +109,7 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
     }
     const data = (await response.json()) as ApiResponse;
     setProfile(data.profile);
+    setAvatarUrl(data.profile.avatar_url ?? null);
     setName(data.profile.name ?? "");
     setEmail(data.profile.email ?? "");
     setPhones(
@@ -171,6 +176,37 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
       }
       return [...next];
     });
+  };
+
+  const onAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setAvatarStatus("");
+    setAvatarUploading(true);
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const token = sessionData.session?.access_token ?? "";
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch("/api/profile/avatar", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setAvatarStatus(data.error ?? "프로필 이미지 업로드에 실패했습니다.");
+      setAvatarUploading(false);
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+    setAvatarUrl(data.avatar_url ?? null);
+    setAvatarStatus("프로필 이미지가 변경되었습니다.");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("profileUpdated"));
+    }
+    setAvatarUploading(false);
   };
 
   const onSave = async () => {
@@ -301,6 +337,25 @@ export function UserProfileCard({ showLogout = true }: { showLogout?: boolean })
           <span className="profile-label">호수</span>
           <span>{unit?.code ? `${unit.code}호` : "-"}</span>
         </div>
+      </div>
+
+      <div className="profile-section profile-avatar">
+        <div className="profile-section__title">프로필 사진</div>
+        <div className="profile-avatar__preview">
+          {avatarUrl ? (
+            <img className="profile-avatar__image" src={avatarUrl} alt="프로필" />
+          ) : (
+            <div className="muted">등록된 프로필 이미지가 없습니다.</div>
+          )}
+        </div>
+        <input
+          className="profile-avatar__input"
+          type="file"
+          accept="image/*"
+          onChange={onAvatarChange}
+          disabled={avatarUploading}
+        />
+        {avatarStatus ? <div className="muted profile-avatar__status">{avatarStatus}</div> : null}
       </div>
 
       <div className="profile-section">

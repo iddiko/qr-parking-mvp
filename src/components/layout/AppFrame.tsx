@@ -2,11 +2,11 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Header } from "./Header";
-import { Sidebar } from "./Sidebar";
-import { RightPanel } from "./RightPanel";
-import { Footer } from "./Footer";
-import { BodyGrid } from "./BodyGrid";
+import { Header } from "@/components/layout/Header";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { RightPanel } from "@/components/layout/RightPanel";
+import { Footer } from "@/components/layout/Footer";
+import { BodyGrid } from "@/components/layout/BodyGrid";
 import { EditModeProvider } from "@/lib/auth/editMode";
 import { RightPanelProvider } from "./RightPanelContext";
 

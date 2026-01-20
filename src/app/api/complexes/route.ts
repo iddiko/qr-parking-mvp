@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   });
   if (profile!.role !== "SUPER") {
     if (!profile!.complex_id) {
-      return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+      return NextResponse.json({ error: "소속 단지가 없습니다." }, { status: 400 });
     }
     query = query.eq("id", profile!.complex_id);
   }
@@ -29,7 +29,58 @@ export async function GET(req: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  return NextResponse.json({ complexes: data });
+
+  const complexes = data ?? [];
+  if (complexes.length === 0) {
+    return NextResponse.json({ complexes });
+  }
+
+  const complexIds = complexes.map((complex) => complex.id);
+  const { data: buildings, error: buildingsError } = await supabaseAdmin
+    .from("buildings")
+    .select("id, complex_id")
+    .in("complex_id", complexIds);
+
+  if (buildingsError) {
+    return NextResponse.json({ error: buildingsError.message }, { status: 400 });
+  }
+
+  const buildingCounts = new Map<string, number>();
+  const buildingComplexMap = new Map<string, string>();
+  const buildingIds: string[] = [];
+
+  (buildings ?? []).forEach((building) => {
+    buildingIds.push(building.id);
+    buildingComplexMap.set(building.id, building.complex_id);
+    buildingCounts.set(building.complex_id, (buildingCounts.get(building.complex_id) || 0) + 1);
+  });
+
+  let unitCounts = new Map<string, number>();
+  if (buildingIds.length > 0) {
+    const { data: units, error: unitsError } = await supabaseAdmin
+      .from("units")
+      .select("id, building_id")
+      .in("building_id", buildingIds);
+
+    if (unitsError) {
+      return NextResponse.json({ error: unitsError.message }, { status: 400 });
+    }
+
+    unitCounts = new Map<string, number>();
+    (units ?? []).forEach((unit) => {
+      const complexId = buildingComplexMap.get(unit.building_id);
+      if (!complexId) return;
+      unitCounts.set(complexId, (unitCounts.get(complexId) || 0) + 1);
+    });
+  }
+
+  const enriched = complexes.map((complex) => ({
+    ...complex,
+    building_count: buildingCounts.get(complex.id) || 0,
+    unit_count: unitCounts.get(complex.id) || 0,
+  }));
+
+  return NextResponse.json({ complexes: enriched });
 }
 
 export async function POST(req: Request) {
@@ -53,7 +104,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const name = body.name as string;
   if (!name) {
-    return NextResponse.json({ error: "단지 이름이 필요합니다." }, { status: 400 });
+    return NextResponse.json({ error: "단지명을 입력해주세요." }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin

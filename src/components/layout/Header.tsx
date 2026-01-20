@@ -1,174 +1,130 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
-import { UserIcon } from "../icons/UserIcon";
-import { useEditMode } from "@/lib/auth/editMode";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabaseClient } from "@/lib/supabase/client";
 import { ProfileMenuContent } from "./ProfileMenu";
+import { useEditMode } from "@/lib/auth/editMode";
 
 type HeaderProps = {
   complexName?: string;
   showEditToggle?: boolean;
-  onMenuToggle?: () => void;
+  onMenuToggle: () => void;
 };
 
-type Role = "SUPER" | "MAIN" | "SUB" | "GUARD" | "RESIDENT";
-
-type ComplexSelectionDetail = {
-  id?: string;
-  name?: string;
+type ProfileRow = {
+  avatar_url: string | null;
 };
 
-export function Header({ complexName = "단지", showEditToggle = true, onMenuToggle }: HeaderProps) {
+export function Header({ complexName, showEditToggle, onMenuToggle }: HeaderProps) {
+  const router = useRouter();
   const { enabled, setEnabled } = useEditMode();
-  const [name, setName] = useState(complexName);
-  const [showToggle, setShowToggle] = useState(showEditToggle);
-  const [role, setRole] = useState<Role | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [logoComplexId, setLogoComplexId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     const load = async () => {
       const { data: sessionData } = await supabaseClient.auth.getSession();
       const userId = sessionData.session?.user.id;
       if (!userId) {
         return;
       }
-      const { data: profile } = await supabaseClient
+      const { data } = await supabaseClient
         .from("profiles")
-        .select("complex_id, role")
+        .select("avatar_url")
         .eq("id", userId)
         .single();
-      if (profile?.role) {
-        setRole(profile.role as Role);
+      if (!active) {
+        return;
       }
-      if (profile?.role === "SUPER") {
-        setShowToggle(true);
-      } else {
-        setShowToggle(false);
-      }
-      if (profile?.complex_id) {
-        setLogoComplexId(profile.complex_id);
-        const { data: complex } = await supabaseClient
-          .from("complexes")
-          .select("name")
-          .eq("id", profile.complex_id)
-          .single();
-        if (complex?.name) {
-          setName(complex.name);
-        }
-      }
+      const row = data as ProfileRow | null;
+      setAvatarUrl(row?.avatar_url ?? null);
     };
     load();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (role !== "SUPER") {
-      return;
-    }
-    const storedName = localStorage.getItem("selectedComplexName");
-    if (storedName) {
-      setName(storedName);
-    }
-    const storedId = localStorage.getItem("selectedComplexId");
-    if (storedId) {
-      setLogoComplexId(storedId);
-    }
-    const handleSelection = (event: Event) => {
-      const detail = (event as CustomEvent<ComplexSelectionDetail>).detail;
-      if (detail?.name) {
-        setName(detail.name);
-      }
-      if (detail?.id) {
-        setLogoComplexId(detail.id);
-      }
+    const handler = () => {
+      void supabaseClient.auth.getSession().then(({ data }) => {
+        const userId = data.session?.user.id;
+        if (!userId) {
+          return;
+        }
+        supabaseClient
+          .from("profiles")
+          .select("avatar_url")
+          .eq("id", userId)
+          .single()
+          .then(({ data: row }) => {
+            setAvatarUrl((row as ProfileRow | null)?.avatar_url ?? null);
+          });
+      });
     };
-    window.addEventListener("complexSelectionChanged", handleSelection as EventListener);
-    return () => {
-      window.removeEventListener("complexSelectionChanged", handleSelection as EventListener);
-    };
-  }, [role]);
-
-  useEffect(() => {
-    const loadLogo = async () => {
-      if (!logoComplexId) {
-        setLogoUrl(null);
-        return;
-      }
-      const response = await fetch(`/api/branding?complex_id=${logoComplexId}`);
-      if (!response.ok) {
-        setLogoUrl(null);
-        return;
-      }
-      const data = await response.json();
-      setLogoUrl(data?.logo_url ?? null);
-    };
-    loadLogo();
-  }, [logoComplexId]);
+    window.addEventListener("profileUpdated", handler);
+    return () => window.removeEventListener("profileUpdated", handler);
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) {
       return;
     }
-    const handleClick = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+    const close = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".profile-menu")) {
         setMenuOpen(false);
       }
     };
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
   }, [menuOpen]);
 
   return (
     <header className="app-header">
       <div className="app-header__brand">
-        <button className="menu-toggle menu-toggle--header" type="button" aria-label="메뉴 열기" onClick={onMenuToggle}>
+        <button
+          className="menu-toggle menu-toggle--header"
+          type="button"
+          aria-label="메뉴 열기"
+          onClick={onMenuToggle}
+        >
           <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
-        <div className={`app-logo ${logoUrl ? "app-logo--image" : ""}`}>
-          {logoUrl ? <img src={logoUrl} alt="로고" /> : "QR"}
-        </div>
+        <button className="app-logo" type="button" onClick={() => router.push("/")}>QR</button>
         <div className="app-header__titles">
           <div className="app-title">QR Parking MVP</div>
-          <div className="app-subtitle">{name || "단지"}</div>
+          <div className="app-subtitle">{complexName || "단지 선택"}</div>
         </div>
       </div>
       <div className="app-header__right">
-        {showToggle ? (
+        {showEditToggle ? (
           <label className="edit-toggle">
+            <span>편집 모드</span>
             <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-            수정 모드
           </label>
         ) : null}
-        <div className="profile-menu" ref={menuRef}>
+        <div className="profile-menu">
           <button
-            className="icon-button"
             type="button"
+            className="icon-button icon-button--profile"
             aria-label="마이페이지 열기"
-            aria-expanded={menuOpen}
-            aria-controls="profile-menu-panel"
             onClick={() => setMenuOpen((prev) => !prev)}
           >
-            <UserIcon />
+            {avatarUrl ? (
+              <img className="header-avatar" src={avatarUrl} alt="프로필 이미지" />
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c1.5-4 6-6 8-6s6.5 2 8 6" />
+              </svg>
+            )}
           </button>
-          {menuOpen ? (
-            <div id="profile-menu-panel" className="profile-menu__panel" role="menu">
-              <ProfileMenuContent variant="popover" onNavigate={() => setMenuOpen(false)} />
-            </div>
-          ) : null}
+          {menuOpen ? <ProfileMenuContent variant="popover" onNavigate={() => setMenuOpen(false)} /> : null}
         </div>
       </div>
     </header>
