@@ -98,7 +98,6 @@ export function Header({ complexName, showEditToggle, onMenuToggle }: HeaderProp
         <button className="app-logo" type="button" onClick={() => router.push("/")}>QR</button>
         <div className="app-header__titles">
           <div className="app-title">QR Parking MVP</div>
-          <div className="app-subtitle">{complexName || "단지 선택"}</div>
         </div>
       </div>
       <div className="app-header__right">

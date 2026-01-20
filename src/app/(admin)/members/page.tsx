@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { supabaseClient } from "@/lib/supabase/client";
 import { useEditMode } from "@/lib/auth/editMode";
@@ -49,6 +50,10 @@ type BuildingRow = {
 type UnitRow = {
   id: string;
   code: string;
+};
+
+type ProfileRow = {
+  avatar_url: string | null;
 };
 
 const roleLabel = (role?: string) => {
@@ -147,6 +152,7 @@ const buildQrUrl = (code: string) => {
 };
 
 export default function Page() {
+  const router = useRouter();
   const { enabled } = useEditMode();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -174,6 +180,8 @@ export default function Page() {
   const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(false);
   const [qrThumbs, setQrThumbs] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const loadProfile = async () => {
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -289,6 +297,63 @@ export default function Page() {
     loadProfile();
   }, []);
 
+  useLayoutEffect(() => {
+    const applyClass = () => {
+      const isMobile = window.matchMedia("(max-width: 768px)").matches;
+      document.body.classList.toggle("members-mobile", isMobile);
+      document.documentElement.classList.toggle("members-mobile", isMobile);
+    };
+    applyClass();
+    window.addEventListener("resize", applyClass);
+    return () => {
+      window.removeEventListener("resize", applyClass);
+      document.body.classList.remove("members-mobile");
+      document.documentElement.classList.remove("members-mobile");
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadAvatar = async () => {
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) {
+        return;
+      }
+      const { data } = await supabaseClient.from("profiles").select("avatar_url").eq("id", userId).single();
+      if (!active) {
+        return;
+      }
+      const row = data as ProfileRow | null;
+      setAvatarUrl(row?.avatar_url ?? null);
+    };
+    loadAvatar();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      void supabaseClient.auth.getSession().then(({ data }) => {
+        const userId = data.session?.user.id;
+        if (!userId) {
+          return;
+        }
+        supabaseClient
+          .from("profiles")
+          .select("avatar_url")
+          .eq("id", userId)
+          .single()
+          .then(({ data: row }) => {
+            setAvatarUrl((row as ProfileRow | null)?.avatar_url ?? null);
+          });
+      });
+    };
+    window.addEventListener("profileUpdated", handler);
+    return () => window.removeEventListener("profileUpdated", handler);
+  }, []);
+
   useEffect(() => {
     const handleSelection = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string }>).detail;
@@ -340,9 +405,35 @@ export default function Page() {
         qrExpiresAt: latestQr?.expires_at ?? null,
         qrStatus: latestQr?.status ?? "-",
         qrCode: latestQr?.code ?? "",
+        nameLabel: member.name ?? "-",
       };
     });
   }, [members]);
+
+  const mobileRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return rows;
+    }
+    return rows.filter((row) => {
+      const terms = [
+        row.member.email,
+        row.nameLabel,
+        row.displayPhone,
+        row.complexName,
+        row.buildingLabel,
+        row.unitLabel,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return terms.includes(query);
+    });
+  }, [rows, searchQuery]);
+
+  const mobileActiveCount = useMemo(() => {
+    return rows.filter((row) => row.qrStatus === "ACTIVE").length;
+  }, [rows]);
 
   useEffect(() => {
     const loadThumbs = async () => {
@@ -462,126 +553,328 @@ export default function Page() {
   return (
     <MenuGuard roleGroup="sub" toggleKey="members">
       <div>
-        <h1 className="page-title">회원관리</h1>
-        <p className="muted">모든 계정을 조회하고 역할/정보/QR 상태를 관리합니다.</p>
+        <div className="members-desktop">
+          <h1 className="page-title">회원관리</h1>
+          <p className="muted">모든 계정을 조회하고 역할/정보/QR 상태를 관리합니다.</p>
 
-        <div className="panel-card members-filters">
-          <div className="panel-title">회원 필터</div>
-          <label>
-            단지 필터
-            <select
-              value={filterComplexId}
-              onChange={(event) => {
-                const next = event.target.value;
-                setFilterComplexId(next);
-                if (profileRole === "SUPER") {
-                  setShowAll(next === "");
-                }
-              }}
-              disabled={profileRole === "MAIN" || profileRole === "SUB"}
-            >
-              <option value="">전체</option>
-              {complexes.map((complex) => (
-                <option key={complex.id} value={complex.id}>
-                  {complex.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            동 필터
-            <select
-              value={filterBuildingId}
-              onChange={(event) => setFilterBuildingId(event.target.value)}
-              disabled={profileRole === "SUB"}
-            >
-              <option value="">전체</option>
-              {buildings.map((building) => (
-                <option key={building.id} value={building.id}>
-                  {building.code}동 ({building.name})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            역할 필터
-            <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
-              <option value="">전체</option>
-              <option value="SUPER">슈퍼관리자</option>
-              <option value="MAIN">메인관리자</option>
-              <option value="SUB">서브관리자</option>
-              <option value="GUARD">경비</option>
-              <option value="RESIDENT">입주민</option>
-            </select>
-          </label>
-          {profileRole === "SUPER" ? (
-            <label className="filter-inline">
-              <input type="checkbox" checked={showAll} onChange={(event) => setShowAll(event.target.checked)} />
-              전체 보기
+          <div className="panel-card members-filters">
+            <div className="panel-title">회원 필터</div>
+            <label>
+              단지 필터
+              <select
+                value={filterComplexId}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setFilterComplexId(next);
+                  if (profileRole === "SUPER") {
+                    setShowAll(next === "");
+                  }
+                }}
+                disabled={profileRole === "MAIN" || profileRole === "SUB"}
+              >
+                <option value="">전체</option>
+                {complexes.map((complex) => (
+                  <option key={complex.id} value={complex.id}>
+                    {complex.name}
+                  </option>
+                ))}
+              </select>
             </label>
-          ) : null}
+            <label>
+              동 필터
+              <select
+                value={filterBuildingId}
+                onChange={(event) => setFilterBuildingId(event.target.value)}
+                disabled={profileRole === "SUB"}
+              >
+                <option value="">전체</option>
+                {buildings.map((building) => (
+                  <option key={building.id} value={building.id}>
+                    {building.code}동 ({building.name})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              역할 필터
+              <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
+                <option value="">전체</option>
+                <option value="SUPER">슈퍼관리자</option>
+                <option value="MAIN">메인관리자</option>
+                <option value="SUB">서브관리자</option>
+                <option value="GUARD">경비</option>
+                <option value="RESIDENT">입주민</option>
+              </select>
+            </label>
+            {profileRole === "SUPER" ? (
+              <label className="filter-inline">
+                <input type="checkbox" checked={showAll} onChange={(event) => setShowAll(event.target.checked)} />
+                전체 보기
+              </label>
+            ) : null}
+          </div>
+
+          {status ? <div className="muted">{status}</div> : null}
+          {!loading && members.length === 0 ? <div className="muted">조회된 회원이 없습니다.</div> : null}
+
+          <table className="members-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
+            <thead>
+              <tr>
+                <th align="left">레벨</th>
+                <th align="left">이름</th>
+                <th align="left">전화</th>
+                <th align="left">이메일</th>
+                <th align="left">단지</th>
+                <th align="left">동</th>
+                <th align="left">호수</th>
+                <th align="left">수정</th>
+                <th align="left">삭제</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ member, qrStatus, complexName, buildingLabel, unitLabel, displayPhone }) => {
+                const canEdit = member.role === "RESIDENT" ? qrStatus === "ACTIVE" : true;
+                return (
+                  <tr key={member.id} onClick={() => openModal(member)} style={{ cursor: "pointer" }}>
+                    <td className="members-role">
+                      <span className={`role-badge ${roleClassName(member.role)}`}>{roleLabel(member.role)}</span>
+                    </td>
+                    <td>{member.name ?? "-"}</td>
+                    <td>{displayPhone}</td>
+                    <td className="members-email">{member.email}</td>
+                    <td>{complexName}</td>
+                    <td>{buildingLabel}</td>
+                    <td>{unitLabel}</td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openModal(member, true);
+                        }}
+                        disabled={!canEdit}
+                      >
+                        수정
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          remove(member.id);
+                        }}
+                        disabled={!enabled}
+                      >
+                        삭제
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
-        {status ? <div className="muted">{status}</div> : null}
-        {!loading && members.length === 0 ? <div className="muted">조회된 회원이 없습니다.</div> : null}
+        <div className="members-mobile">
+          <div className="mobile-appbar">
+            <button type="button" className="mobile-appbar__back" onClick={() => router.back()} aria-label="뒤로가기">
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              </svg>
+            </button>
+            <div className="mobile-appbar__title">QR Parking MVP</div>
+            <button
+              type="button"
+              className="mobile-appbar__profile"
+              onClick={() => router.push("/admin/mypage")}
+              aria-label="마이페이지"
+            >
+              {avatarUrl ? (
+                <img className="mobile-appbar__avatar" src={avatarUrl} alt="마이페이지" />
+              ) : (
+                <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M7 18c1.4-2.2 3.8-3.5 5-3.5s3.6 1.3 5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                </svg>
+              )}
+            </button>
+          </div>
 
-        <table className="members-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
-          <thead>
-            <tr>
-              <th align="left">레벨</th>
-              <th align="left">이름</th>
-              <th align="left">전화</th>
-              <th align="left">이메일</th>
-              <th align="left">단지</th>
-              <th align="left">동</th>
-              <th align="left">호수</th>
-              <th align="left">수정</th>
-              <th align="left">삭제</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ member, qrStatus, complexName, buildingLabel, unitLabel, displayPhone }) => {
-              const canEdit = member.role === "RESIDENT" ? qrStatus === "ACTIVE" : true;
-              return (
-                <tr key={member.id} onClick={() => openModal(member)} style={{ cursor: "pointer" }}>
-                  <td className="members-role">
-                    <span className={`role-badge ${roleClassName(member.role)}`}>{roleLabel(member.role)}</span>
-                  </td>
-                  <td>{member.name ?? "-"}</td>
-                  <td>{displayPhone}</td>
-                  <td className="members-email">{member.email}</td>
-                  <td>{complexName}</td>
-                  <td>{buildingLabel}</td>
-                  <td>{unitLabel}</td>
-                  <td>
+          <div className="members-filterbar">
+            <div className="members-filterbar__title">
+              <span>회원관리</span>
+              <div className="members-filterbar__select members-filterbar__select--inline">
+                <select
+                  value={filterComplexId}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setFilterComplexId(next);
+                    if (profileRole === "SUPER") {
+                      setShowAll(next === "");
+                    }
+                  }}
+                  disabled={profileRole === "MAIN" || profileRole === "SUB"}
+                >
+                  <option value="">전체 단지</option>
+                  {complexes.map((complex) => (
+                    <option key={complex.id} value={complex.id}>
+                      {complex.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="members-filterbar__caret" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="members-filterbar__row">
+              <div className="members-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M20 20l-3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="이메일, 전화번호..."
+                />
+              </div>
+              <div className="members-filterbar__select">
+                <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
+                  <option value="">모든 역할</option>
+                  <option value="SUPER">슈퍼관리자</option>
+                  <option value="MAIN">메인관리자</option>
+                  <option value="SUB">서브관리자</option>
+                  <option value="GUARD">경비</option>
+                  <option value="RESIDENT">입주민</option>
+                </select>
+                <span className="members-filterbar__caret" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="members-filterbar__row members-filterbar__row--compact">
+              <div className="members-filterbar__select">
+                <select
+                  value={filterComplexId}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setFilterComplexId(next);
+                    if (profileRole === "SUPER") {
+                      setShowAll(next === "");
+                    }
+                  }}
+                  disabled={profileRole === "MAIN" || profileRole === "SUB"}
+                >
+                  <option value="">전체 지역</option>
+                  {complexes.map((complex) => (
+                    <option key={complex.id} value={complex.id}>
+                      {complex.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="members-filterbar__caret" aria-hidden="true" />
+              </div>
+              <div className="members-filterbar__select">
+                <select value={filterBuildingId} onChange={(event) => setFilterBuildingId(event.target.value)}>
+                  <option value="">전체 동</option>
+                  {buildings.map((building) => (
+                    <option key={building.id} value={building.id}>
+                      {building.code}동
+                    </option>
+                  ))}
+                </select>
+                <span className="members-filterbar__caret" aria-hidden="true" />
+              </div>
+            </div>
+          </div>
+
+          <div className="members-mobile-scroll">
+            <div className="members-card-list">
+              <div className="members-filterbar__summary">
+                전체 {rows.length}명 / 활성 {mobileActiveCount}명
+              </div>
+              {mobileRows.length === 0 ? (
+                <div className="muted">조회된 회원이 없습니다.</div>
+              ) : (
+                mobileRows.map((row) => {
+                  const statusLabel = qrStatusLabel(row.qrStatus);
+                  return (
                     <button
+                      key={row.member.id}
                       type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openModal(member, true);
-                      }}
-                      disabled={!canEdit}
+                      className="members-card"
+                      onClick={() => openModal(row.member)}
                     >
-                      수정
+                      <div className="members-card__avatar">
+                        <span>{row.nameLabel.slice(0, 1)}</span>
+                      </div>
+                      <div className="members-card__info">
+                        <div className="members-card__name">
+                          <span className="members-card__name-text">{row.nameLabel}</span>
+                          <span className={`role-badge ${roleClassName(row.member.role)}`}>
+                            {roleLabel(row.member.role)}
+                          </span>
+                        </div>
+                        <div className="members-card__meta">{row.member.email}</div>
+                        <div className="members-card__meta">
+                          {row.complexName} {row.buildingLabel} {row.unitLabel}
+                        </div>
+                      </div>
+                      <div className="members-card__status">
+                        <span className="members-card__status-badge">{statusLabel}</span>
+                        <span className="members-card__phone">{row.displayPhone}</span>
+                        <svg className="members-card__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M9 6l6 6-6 6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </div>
                     </button>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        remove(member.id);
-                      }}
-                      disabled={!enabled}
-                    >
-                      삭제
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="mobile-tabbar">
+            <button type="button" className="mobile-tabbar__item" onClick={() => router.push("/dashboard/super")}>
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M7 8h10M7 12h10M7 16h6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+              <span>대시보드</span>
+            </button>
+            <button type="button" className="mobile-tabbar__item" onClick={() => router.push("/complexes")}>
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M8 7h2M8 11h2M8 15h2M14 7h2M14 11h2M14 15h2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M10 21v-4h4v4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+              <span>단지관리</span>
+            </button>
+            <button type="button" className="mobile-tabbar__item is-active" aria-current="page">
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <circle cx="12" cy="9" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M5 20c1.2-3 4.2-5 7-5s5.8 2 7 5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+              <span>회원관리</span>
+            </button>
+            <button
+              type="button"
+              className="mobile-tabbar__item mobile-tabbar__item--settings"
+              onClick={() => router.push("/settings")}
+            >
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M17 7l2.1-2.1" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+              <span>설정</span>
+            </button>
+          </div>
+        </div>
 
         {showModal && selectedRow ? (
           <>

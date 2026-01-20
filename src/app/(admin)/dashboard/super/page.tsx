@@ -122,7 +122,10 @@ export default function Page() {
         localStorage.setItem("selectedComplexName", name);
       }
     }
-    window.dispatchEvent(new CustomEvent("complexSelectionChanged", { detail: { complexId: value } }));
+    const name = value === "all" ? "" : complexes.find((complex) => complex.id === value)?.name ?? "";
+    window.dispatchEvent(
+      new CustomEvent("complexSelectionChanged", { detail: { complexId: value, complexName: name } })
+    );
   };
 
   useEffect(() => {

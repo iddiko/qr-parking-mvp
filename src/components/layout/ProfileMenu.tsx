@@ -52,8 +52,8 @@ type ProfileMenuContentProps = {
 };
 
 type ComplexSelectionDetail = {
-  id?: string;
-  name?: string;
+  complexId?: string;
+  complexName?: string;
 };
 
 const roleTitle: Record<ProfileRow["role"], string> = {
@@ -237,7 +237,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
   const [buildingLabel, setBuildingLabel] = useState<string>("");
   const [unitLabel, setUnitLabel] = useState<string>("");
   const [complexes, setComplexes] = useState<ComplexRow[]>([]);
-  const [selectedComplexId, setSelectedComplexId] = useState<string>("");
+  const [selectedComplexId, setSelectedComplexId] = useState<string>("all");
   const [email, setEmail] = useState<string>("");
   const [qrStatus, setQrStatus] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -348,18 +348,22 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
         const complexData = await responseComplexes.json();
         const list = complexData.complexes ?? [];
         setComplexes(list);
-        const storedId = localStorage.getItem("selectedComplexId") ?? "";
-        if (storedId) {
-          setSelectedComplexId(storedId);
-          const selected = list.find((item: ComplexRow) => item.id === storedId);
+        const storedId = localStorage.getItem("selectedComplexId") ?? "all";
+        const hasStored = storedId !== "all" && list.some((item: ComplexRow) => item.id === storedId);
+        const nextId = hasStored ? storedId : "all";
+        setSelectedComplexId(nextId);
+        if (nextId !== "all") {
+          const selected = list.find((item: ComplexRow) => item.id === nextId);
           if (selected?.name) {
             setComplexName(selected.name);
           }
+        } else {
+          setComplexName("");
         }
       }
     }
 
-    if (profileData.complex_id) {
+    if (profileData.role !== "SUPER" && profileData.complex_id) {
       setSelectedComplexId(profileData.complex_id);
       const token = sessionData.session?.access_token ?? "";
       if (token) {
@@ -394,6 +398,23 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     const handler = () => load();
     window.addEventListener("profileUpdated", handler);
     return () => window.removeEventListener("profileUpdated", handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { complexId?: string; complexName?: string } | undefined;
+      if (!detail?.complexId) {
+        return;
+      }
+      setSelectedComplexId(detail.complexId);
+      if (detail.complexName !== undefined) {
+        setComplexName(detail.complexName);
+      } else if (detail.complexId === "all") {
+        setComplexName("");
+      }
+    };
+    window.addEventListener("complexSelectionChanged", handler as EventListener);
+    return () => window.removeEventListener("complexSelectionChanged", handler as EventListener);
   }, []);
 
   const items = useMemo(() => {
@@ -442,10 +463,10 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
 
   const qrStatusLabel = (() => {
     if (qrStatus) {
-      if (qrStatus === "ACTIVE") {
+      if (qrStatus === "ACTIVE" || qrStatus === "active") {
         return "활성";
       }
-      if (qrStatus === "INACTIVE") {
+      if (qrStatus === "INACTIVE" || qrStatus === "inactive") {
         return "비활성";
       }
       return qrStatus;
@@ -470,10 +491,12 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
   const handleComplexChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const nextId = event.target.value;
     setSelectedComplexId(nextId);
-    if (!nextId) {
+    if (!nextId || nextId === "all") {
       localStorage.removeItem("selectedComplexId");
       localStorage.removeItem("selectedComplexName");
-      window.dispatchEvent(new CustomEvent<ComplexSelectionDetail>("complexSelectionChanged", { detail: {} }));
+      window.dispatchEvent(
+        new CustomEvent("complexSelectionChanged", { detail: { complexId: "all", complexName: "" } })
+      );
       return;
     }
     const selected = complexes.find((item) => item.id === nextId);
@@ -484,7 +507,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     }
     window.dispatchEvent(
       new CustomEvent<ComplexSelectionDetail>("complexSelectionChanged", {
-        detail: { id: nextId, name },
+        detail: { complexId: nextId, complexName: name },
       })
     );
   };
@@ -498,7 +521,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
         <label style={{ marginBottom: "12px" }}>
           단지 선택
           <select value={selectedComplexId} onChange={handleComplexChange}>
-            <option value="">전체</option>
+            <option value="all">전체 단지</option>
             {complexes.map((complex) => (
               <option key={complex.id} value={complex.id}>
                 {complex.name}
