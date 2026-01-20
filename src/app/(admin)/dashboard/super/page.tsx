@@ -198,7 +198,7 @@ export default function Page() {
           .order("created_at", { ascending: false }),
         supabaseClient
           .from("vehicles")
-          .select("id, owner_profile_id, plate, plate_number")
+          .select("id, owner_profile_id, plate")
           .order("created_at", { ascending: false }),
         supabaseClient.from("qrs").select("id, status, vehicle_id").order("created_at", { ascending: false }),
         supabaseClient
