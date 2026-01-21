@@ -8,7 +8,7 @@ import { RightPanel } from "@/components/layout/RightPanel";
 import { Footer } from "@/components/layout/Footer";
 import { BodyGrid } from "@/components/layout/BodyGrid";
 import { EditModeProvider } from "@/lib/auth/editMode";
-import { RightPanelProvider } from "./RightPanelContext";
+import { RightPanelProvider } from "@/components/layout/RightPanelContext";
 
 type AppFrameProps = {
   children: ReactNode;

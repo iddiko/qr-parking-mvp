@@ -604,7 +604,7 @@ export default function Page() {
                 </svg>
               </span>
               <div className="stat-label">QR 활성</div>
-              <div className="stat-value">{metrics.qrActive}?</div>
+              <div className="stat-value">{metrics.qrActive}</div>
             </div>
             <div className="stat-card">
               <span className="stat-icon">
@@ -726,7 +726,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">총 회원</div>
-                <div className="mobile-kpi-value">{metrics.totalMembers}?</div>
+                <div className="mobile-kpi-value">{metrics.totalMembers}</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--rose" />
               </div>
               <div className="mobile-kpi-card">
@@ -739,7 +739,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">활성 QR</div>
-                <div className="mobile-kpi-value">{metrics.qrActive}?</div>
+                <div className="mobile-kpi-value">{metrics.qrActive}</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--amber" />
               </div>
               <div className="mobile-kpi-card">
@@ -750,7 +750,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">일반 스캔</div>
-                <div className="mobile-kpi-value">{dailyScans}?</div>
+                <div className="mobile-kpi-value">{dailyScans}</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--blue" />
               </div>
               <div className="mobile-kpi-card">
@@ -761,7 +761,7 @@ export default function Page() {
                   </svg>
                 </div>
                 <div className="mobile-kpi-title">승인 대기</div>
-                <div className="mobile-kpi-value">{metrics.approvals}?</div>
+                <div className="mobile-kpi-value">{metrics.approvals}</div>
                 <div className="mobile-kpi-spark mobile-kpi-spark--red" />
               </div>
             </div>

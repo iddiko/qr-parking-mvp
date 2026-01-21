@@ -235,7 +235,7 @@ export default function Page() {
 
   const handleComplexClick = (complexId: string) => {
     handleComplexSelect(complexId);
-    router.push("/buildings");
+    router.push(`/buildings?complexId=${complexId}`);
   };
 
   useEffect(() => {

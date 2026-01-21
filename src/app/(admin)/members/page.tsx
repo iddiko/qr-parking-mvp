@@ -182,6 +182,7 @@ export default function Page() {
   const [qrThumbs, setQrThumbs] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   const loadProfile = async () => {
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -299,9 +300,10 @@ export default function Page() {
 
   useLayoutEffect(() => {
     const applyClass = () => {
-      const isMobile = window.matchMedia("(max-width: 768px)").matches;
-      document.body.classList.toggle("members-mobile", isMobile);
-      document.documentElement.classList.toggle("members-mobile", isMobile);
+      const nextIsMobile = window.matchMedia("(max-width: 768px)").matches;
+      setIsMobile(nextIsMobile);
+      document.body.classList.toggle("members-mobile", nextIsMobile);
+      document.documentElement.classList.toggle("members-mobile", nextIsMobile);
     };
     applyClass();
     window.addEventListener("resize", applyClass);
@@ -460,6 +462,161 @@ export default function Page() {
   }, [rows]);
 
   const selectedRow = rows.find((row) => row.member.id === selectedMemberId) ?? null;
+  const selectedVehiclePlate = useMemo(() => {
+    if (!selectedRow) {
+      return "-";
+    }
+    const vehicle = (selectedRow.member as any)?.vehicles?.[0] ?? null;
+    return vehicle?.plate_number ?? vehicle?.plate ?? "-";
+  }, [selectedRow]);
+  const canEdit = selectedRow
+    ? selectedRow.member.role === "RESIDENT"
+      ? selectedRow.qrStatus === "ACTIVE"
+      : true
+    : false;
+  const isMobileDetail = isMobile && showModal && !!selectedRow;
+  const detailBody = selectedRow ? (
+    <>
+      {status ? <div className="members-modal__status">{status}</div> : null}
+      <div className="members-modal__section">
+        <div className="members-modal__section-title">기본 정보</div>
+        <div className="members-modal__info-row">
+          <span className="members-modal__info-label">이메일</span>
+          {editingId ? (
+            <input value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} />
+          ) : (
+            <span className="members-modal__info-value">{selectedRow.member.email}</span>
+          )}
+        </div>
+        <div className="members-modal__info-row">
+          <span className="members-modal__info-label">전화</span>
+          {editingId ? (
+            <input value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} />
+          ) : (
+            <span className="members-modal__info-value">{selectedRow.displayPhone}</span>
+          )}
+        </div>
+        <div className="members-modal__info-row">
+          <span className="members-modal__info-label">단지</span>
+          {editingId ? (
+            <select value={form.complexId} onChange={(event) => setForm((prev) => ({ ...prev, complexId: event.target.value }))}>
+              <option value="">-</option>
+              {complexes.map((complex) => (
+                <option key={complex.id} value={complex.id}>
+                  {complex.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="members-modal__info-value">{selectedRow.complexName}</span>
+          )}
+        </div>
+        <div className="members-modal__info-row">
+          <span className="members-modal__info-label">동/호수</span>
+          {editingId ? (
+            <div className="members-modal__info-split">
+              <select value={form.buildingId} onChange={(event) => setForm((prev) => ({ ...prev, buildingId: event.target.value }))}>
+                <option value="">-</option>
+                {buildings.map((building) => (
+                  <option key={building.id} value={building.id}>
+                    {building.code}동
+                  </option>
+                ))}
+              </select>
+              <select value={form.unitId} onChange={(event) => setForm((prev) => ({ ...prev, unitId: event.target.value }))}>
+                <option value="">-</option>
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.code}호
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <span className="members-modal__info-value">
+              {selectedRow.buildingLabel} {selectedRow.unitLabel}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="members-modal__section members-modal__section--qr">
+        <div className="members-modal__section-title">QR 정보</div>
+        <div className="members-modal__qr-content">
+          <div className="members-modal__qr-list">
+            <div className="members-modal__kv">
+              <span className="members-modal__kv-label">발행수</span>
+              <span className="members-modal__kv-value">{selectedRow.qrCount}개</span>
+            </div>
+            <div className="members-modal__kv">
+              <span className="members-modal__kv-label">발행일</span>
+              <span className="members-modal__kv-value">{formatDateTime(selectedRow.qrIssuedAt)}</span>
+            </div>
+            <div className="members-modal__kv">
+              <span className="members-modal__kv-label">만료일</span>
+              <span className="members-modal__kv-value">{ddayLabel(selectedRow.qrExpiresAt)}</span>
+            </div>
+            <div className="members-modal__kv">
+              <span className="members-modal__kv-label">QR 상태</span>
+              <span className="members-modal__kv-value">{qrStatusLabel(selectedRow.qrStatus)}</span>
+            </div>
+          </div>
+          <div className="members-modal__qr-thumb">
+            {qrThumbs[selectedRow.member.id] ? (
+              <>
+                <img src={qrThumbs[selectedRow.member.id]} alt="QR" />
+                <div className="members-modal__qr-plate">{selectedVehiclePlate}</div>
+              </>
+            ) : (
+              <div className="members-modal__qr-empty">QR 정보 없음</div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="members-modal__section">
+        <div className="members-modal__section-title">차량 정보</div>
+        <div className="members-modal__vehicle-row">
+          <div className="members-modal__vehicle-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M4 14l2-5a2 2 0 0 1 2-1h8a2 2 0 0 1 2 1l2 5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <rect x="3" y="14" width="18" height="5" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              <circle cx="7" cy="19" r="1" fill="currentColor" />
+              <circle cx="17" cy="19" r="1" fill="currentColor" />
+            </svg>
+          </div>
+          <div className="members-modal__vehicle-text">
+            <span className="members-modal__vehicle-label">차량 정보</span>
+            <span className="members-modal__vehicle-value">{selectedVehiclePlate}</span>
+          </div>
+          <svg className="members-modal__vehicle-chevron" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+      <div className="members-modal__section">
+        <div className="members-modal__section-title">최근 스캔</div>
+        <div className="members-modal__empty">최근 스캔 기록이 없습니다.</div>
+      </div>
+      <div className="members-modal__actions">
+        <button type="button" className="members-modal__action members-modal__action--primary" onClick={() => openModal(selectedRow.member, true)} disabled={!enabled || !canEdit}>
+          수정
+        </button>
+        <button type="button" className="members-modal__action members-modal__action--warning" onClick={() => remove(selectedRow.member.id)} disabled={!enabled}>
+          차단
+        </button>
+        <button type="button" className="members-modal__action members-modal__action--danger" onClick={() => remove(selectedRow.member.id)} disabled={!enabled}>
+          삭제
+        </button>
+      </div>
+      <div className="members-modal__note">편집 모드에서만 관리자 액션 기능입니다.</div>
+    </>
+  ) : null;
 
   const openModal = (member: MemberRow, shouldEdit = false) => {
     const qrs = member.vehicles?.flatMap((vehicle) => vehicle.qrs ?? []) ?? [];
@@ -678,28 +835,41 @@ export default function Page() {
 
         <div className="members-mobile">
           <div className="mobile-appbar">
-            <button type="button" className="mobile-appbar__back" onClick={() => router.back()} aria-label="뒤로가기">
+            <button
+              type="button"
+              className="mobile-appbar__back"
+              onClick={() => (isMobileDetail ? closeModal() : router.back())}
+              aria-label="뒤로가기"
+            >
               <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
                 <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
               </svg>
             </button>
-            <div className="mobile-appbar__title">QR Parking MVP</div>
-            <button
-              type="button"
-              className="mobile-appbar__profile"
-              onClick={() => router.push("/admin/mypage")}
-              aria-label="마이페이지"
-            >
-              {avatarUrl ? (
-                <img className="mobile-appbar__avatar" src={avatarUrl} alt="마이페이지" />
-              ) : (
+            <div className="mobile-appbar__title">{isMobileDetail ? "회원 상세" : "QR Parking MVP"}</div>
+            {isMobileDetail ? (
+              <button type="button" className="mobile-appbar__close" onClick={closeModal} aria-label="닫기">
                 <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  <circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  <path d="M7 18c1.4-2.2 3.8-3.5 5-3.5s3.6 1.3 5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M6 6l12 12M18 6l-12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-              )}
-            </button>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="mobile-appbar__profile"
+                onClick={() => router.push("/admin/mypage")}
+                aria-label="마이페이지"
+              >
+                {avatarUrl ? (
+                  <img className="mobile-appbar__avatar" src={avatarUrl} alt="마이페이지" />
+                ) : (
+                  <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <path d="M7 18c1.4-2.2 3.8-3.5 5-3.5s3.6 1.3 5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                )}
+              </button>
+            )}
           </div>
 
           <div className="members-filterbar">
@@ -740,18 +910,28 @@ export default function Page() {
                 />
               </div>
               <div className="members-filterbar__select">
-                <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
-                  <option value="">모든 역할</option>
-                  <option value="SUPER">슈퍼관리자</option>
-                  <option value="MAIN">메인관리자</option>
-                  <option value="SUB">서브관리자</option>
-                  <option value="GUARD">경비</option>
-                  <option value="RESIDENT">입주민</option>
+                <select
+                  value={filterComplexId}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setFilterComplexId(next);
+                    if (profileRole === "SUPER") {
+                      setShowAll(next === "");
+                    }
+                  }}
+                  disabled={profileRole === "MAIN" || profileRole === "SUB"}
+                >
+                  <option value="">전체 단지</option>
+                  {complexes.map((complex) => (
+                    <option key={complex.id} value={complex.id}>
+                      {complex.name}
+                    </option>
+                  ))}
                 </select>
                 <span className="members-filterbar__caret" aria-hidden="true" />
               </div>
             </div>
-            <div className="members-filterbar__row members-filterbar__row--compact">
+            <div className="members-filterbar__controls">
               <div className="members-filterbar__select">
                 <select
                   value={filterComplexId}
@@ -784,60 +964,77 @@ export default function Page() {
                 </select>
                 <span className="members-filterbar__caret" aria-hidden="true" />
               </div>
+              <div className="members-filterbar__select">
+                <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
+                  <option value="">모든 역할</option>
+                  <option value="SUPER">슈퍼관리자</option>
+                  <option value="MAIN">메인관리자</option>
+                  <option value="SUB">서브관리자</option>
+                  <option value="GUARD">경비</option>
+                  <option value="RESIDENT">입주민</option>
+                </select>
+                <span className="members-filterbar__caret" aria-hidden="true" />
+              </div>
             </div>
           </div>
 
-          <div className="members-mobile-scroll">
-            <div className="members-card-list">
-              <div className="members-filterbar__summary">
-                전체 {rows.length}명 / 활성 {mobileActiveCount}명
+          {isMobileDetail ? (
+            <div className="members-mobile-detail">{detailBody}</div>
+          ) : (
+            <div className="members-mobile-scroll">
+              <div className="members-card-list">
+                <div className="members-summary">
+                  전체 {rows.length}명 / 활성 {mobileActiveCount}명
+                </div>
+                {mobileRows.length === 0 ? (
+                  <div className="muted">조회된 회원이 없습니다.</div>
+                ) : (
+                  mobileRows.map((row) => {
+                    const statusLabel = qrStatusLabel(row.qrStatus);
+                    return (
+                      <button
+                        key={row.member.id}
+                        type="button"
+                        className="members-card"
+                        onClick={() => openModal(row.member)}
+                      >
+                        <div className="members-card__avatar">
+                          <span>{row.nameLabel.slice(0, 1)}</span>
+                        </div>
+                        <div className="members-card__info">
+                          <div className="members-card__name">
+                            <span className="members-card__name-text">{row.nameLabel}</span>
+                            <span className={`role-badge ${roleClassName(row.member.role)}`}>
+                              {roleLabel(row.member.role)}
+                            </span>
+                          </div>
+                          <div className="members-card__meta">{row.member.email}</div>
+                          <div className="members-card__meta">
+                            {row.complexName} {row.buildingLabel} {row.unitLabel}
+                          </div>
+                        </div>
+                        <div className="members-card__status">
+                          <div className="members-card__status-row">
+                            <span className="members-card__status-badge">{statusLabel}</span>
+                            <svg className="members-card__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="M9 6l6 6-6 6"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </div>
+                          <span className="members-card__phone">{row.displayPhone}</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
               </div>
-              {mobileRows.length === 0 ? (
-                <div className="muted">조회된 회원이 없습니다.</div>
-              ) : (
-                mobileRows.map((row) => {
-                  const statusLabel = qrStatusLabel(row.qrStatus);
-                  return (
-                    <button
-                      key={row.member.id}
-                      type="button"
-                      className="members-card"
-                      onClick={() => openModal(row.member)}
-                    >
-                      <div className="members-card__avatar">
-                        <span>{row.nameLabel.slice(0, 1)}</span>
-                      </div>
-                      <div className="members-card__info">
-                        <div className="members-card__name">
-                          <span className="members-card__name-text">{row.nameLabel}</span>
-                          <span className={`role-badge ${roleClassName(row.member.role)}`}>
-                            {roleLabel(row.member.role)}
-                          </span>
-                        </div>
-                        <div className="members-card__meta">{row.member.email}</div>
-                        <div className="members-card__meta">
-                          {row.complexName} {row.buildingLabel} {row.unitLabel}
-                        </div>
-                      </div>
-                      <div className="members-card__status">
-                        <span className="members-card__status-badge">{statusLabel}</span>
-                        <span className="members-card__phone">{row.displayPhone}</span>
-                        <svg className="members-card__chevron" viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="M9 6l6 6-6 6"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
             </div>
-          </div>
+          )}
 
           <div className="mobile-tabbar">
             <button type="button" className="mobile-tabbar__item" onClick={() => router.push("/dashboard/super")}>
@@ -876,193 +1073,63 @@ export default function Page() {
           </div>
         </div>
 
-        {showModal && selectedRow ? (
+        {showModal && selectedRow && !isMobile ? (
           <>
             <button className="members-modal-overlay" type="button" onClick={closeModal} aria-label="닫기" />
             <div className="members-modal" role="dialog" aria-modal="true">
-              <div className="members-modal__header">
-                <h2 className="members-modal__title">회원 상세</h2>
-                <button type="button" className="members-modal__close" onClick={closeModal}>
-                  닫기
+              <div className="members-modal__appbar">
+                <button type="button" className="members-modal__nav" onClick={closeModal} aria-label="뒤로가기">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M15 6l-6 6 6 6"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                <div className="members-modal__appbar-title">회원 상세</div>
+                <button
+                  type="button"
+                  className="members-modal__nav members-modal__nav--close"
+                  onClick={closeModal}
+                  aria-label="닫기"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M6 6l12 12M18 6l-12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
                 </button>
               </div>
-              <div className="members-modal__body">
-                <div className="members-modal__section">
-                  <div className="members-modal__section-title">회원 정보</div>
-                  <label>
-                    레벨
-                    {editingId ? (
-                      <select
-                        value={form.role}
-                        onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value }))}
-                      >
-                        <option value="SUPER">슈퍼관리자</option>
-                        <option value="MAIN">메인관리자</option>
-                        <option value="SUB">서브관리자</option>
-                        <option value="GUARD">경비</option>
-                        <option value="RESIDENT">입주민</option>
-                      </select>
-                    ) : (
-                      <div className="members-modal__value">{roleLabel(selectedRow.member.role)}</div>
-                    )}
-                  </label>
-                  <label>
-                    이름
-                    {editingId ? (
-                      <input
-                        value={form.name}
-                        onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                      />
-                    ) : (
-                      <div className="members-modal__value">{selectedRow.member.name ?? "-"}</div>
-                    )}
-                  </label>
-                  <label>
-                    이메일
-                    {editingId ? (
-                      <input
-                        value={form.email}
-                        onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                      />
-                    ) : (
-                      <div className="members-modal__value">{selectedRow.member.email}</div>
-                    )}
-                  </label>
-                  <label>
-                    전화번호
-                    {editingId ? (
-                      <input
-                        value={form.phone}
-                        onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-                      />
-                    ) : (
-                      <div className="members-modal__value">{selectedRow.displayPhone}</div>
-                    )}
-                  </label>
-                  <label>
-                    단지
-                    {editingId && profileRole === "SUPER" ? (
-                      <select
-                        value={form.complexId}
-                        onChange={(event) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            complexId: event.target.value,
-                            buildingId: "",
-                            unitId: "",
-                          }))
-                        }
-                      >
-                        <option value="">전체</option>
-                        {complexes.map((complex) => (
-                          <option key={complex.id} value={complex.id}>
-                            {complex.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="members-modal__value">{selectedRow.complexName}</div>
-                    )}
-                  </label>
-                  <label>
-                    동
-                    {editingId ? (
-                      <select
-                        value={form.buildingId}
-                        onChange={(event) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            buildingId: event.target.value,
-                            unitId: "",
-                          }))
-                        }
-                        disabled={profileRole === "SUB"}
-                      >
-                        <option value="">전체</option>
-                        {buildings.map((building) => (
-                          <option key={building.id} value={building.id}>
-                            {building.code}동 ({building.name})
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="members-modal__value">{selectedRow.buildingLabel}</div>
-                    )}
-                  </label>
-                  <label>
-                    호수
-                    {editingId ? (
-                      <select
-                        value={form.unitId}
-                        onChange={(event) => setForm((prev) => ({ ...prev, unitId: event.target.value }))}
-                      >
-                        <option value="">전체</option>
-                        {units.map((unit) => (
-                          <option key={unit.id} value={unit.id}>
-                            {unit.code}호
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="members-modal__value">{selectedRow.unitLabel}</div>
-                    )}
-                  </label>
+              <div className="members-modal__profile">
+                <div className="members-modal__avatar">
+                  <span>{selectedRow.member.name?.slice(0, 1) ?? selectedRow.member.email.slice(0, 1)}</span>
                 </div>
-
-                <div className="members-modal__section">
-                  <div className="members-modal__section-title">QR 정보</div>
-                  <div className="panel-kv">
-                    <span className="panel-kv__label">QR 유무</span>
-                    <span className="panel-kv__value">{selectedRow.hasQr ? "있음" : "없음"}</span>
-                  </div>
-                  <div className="panel-kv">
-                    <span className="panel-kv__label">QR 발행수</span>
-                    <span className="panel-kv__value">{selectedRow.qrCount}</span>
-                  </div>
-                  <div className="panel-kv">
-                    <span className="panel-kv__label">QR 발행일</span>
-                    <span className="panel-kv__value">
-                      {selectedRow.qrIssuedAt ? formatDateTime(selectedRow.qrIssuedAt) : "-"}
+                <div className="members-modal__profile-info">
+                  <div className="members-modal__profile-name">
+                    <span>{selectedRow.member.name ?? "-"}</span>
+                    <span className={`role-badge ${roleClassName(selectedRow.member.role)}`}>
+                      {roleLabel(selectedRow.member.role)}
                     </span>
                   </div>
-                  <div className="panel-kv">
-                    <span className="panel-kv__label">QR 만료일</span>
-                    <span className="panel-kv__value">{ddayLabel(selectedRow.qrExpiresAt)}</span>
-                  </div>
-                  <div className="panel-kv">
-                    <span className="panel-kv__label">QR 상태</span>
-                    <span className="panel-kv__value">{qrStatusLabel(selectedRow.qrStatus)}</span>
-                  </div>
-                  <div className="panel-qr__thumb">
-                    {selectedRow.hasQr ? (
-                      qrThumbs[selectedRow.member.id] ? (
-                        <img src={qrThumbs[selectedRow.member.id]} alt="QR" />
-                      ) : (
-                        <span className="muted">QR 이미지를 불러올 수 없습니다.</span>
-                      )
-                    ) : (
-                      <span className="muted">QR 없음</span>
-                    )}
+                  <div className="members-modal__profile-badges">
+                    <span className="members-modal__chip members-modal__chip--info">
+                      {selectedRow.hasQr ? "보유" : "무현"}
+                    </span>
+                    <span className="members-modal__chip members-modal__chip--success">
+                      {selectedRow.hasQr ? qrStatusLabel(selectedRow.qrStatus) : "비활성"}
+                    </span>
                   </div>
                 </div>
               </div>
-
-              <div className="members-modal__actions">
-                {editingId ? (
-                  <>
-                    <button type="button" onClick={save} disabled={!enabled}>
-                      저장
-                    </button>
-                    <button type="button" onClick={closeModal}>
-                      닫기
-                    </button>
-                  </>
-                ) : (
-                  <button type="button" onClick={() => openModal(selectedRow.member, true)}>
-                    수정 열기
-                  </button>
-                )}
-              </div>
+              <div className="members-modal__body">{detailBody}</div>
             </div>
           </>
         ) : null}
