@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getProfileFromRequest } from "@/lib/auth/session";
 import { requireAdminRole, requireAuth, requireEditMode, requireComplexScope } from "@/lib/auth/guards";
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       const isExpired = new Date(baseTime).getTime() <= Date.now() - 24 * 60 * 60 * 1000;
       if (isExpired) {
         await supabaseAdmin.from("invites").delete().eq("id", data.id);
-        return NextResponse.json({ error: "초대가 만료되었습니다." }, { status: 410 });
+        return NextResponse.json({ error: "??? ???????." }, { status: 410 });
       }
     }
     return NextResponse.json({ invite: data });
@@ -138,13 +138,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid invite" }, { status: 404 });
     }
     if (invite.status === "ACCEPTED") {
-      return NextResponse.json({ error: "이미 가입된 초대입니다." }, { status: 400 });
+      return NextResponse.json({ error: "?? ??? ?????." }, { status: 400 });
     }
     if (invite.status === "EXPIRED") {
-      return NextResponse.json({ error: "만료된 초대입니다." }, { status: 400 });
+      return NextResponse.json({ error: "??? ?????." }, { status: 400 });
     }
     if (!password || password.length < 8) {
-      return NextResponse.json({ error: "비밀번호는 8자 이상이어야 합니다." }, { status: 400 });
+      return NextResponse.json({ error: "????? 8? ????? ???." }, { status: 400 });
     }
 
     const finalHasVehicle = hasVehicle === null ? invite.has_vehicle : Boolean(hasVehicle);
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
     const finalVehicleType = vehicleType ?? invite.vehicle_type ?? null;
 
     if (finalHasVehicle && (!finalPlate || !finalVehicleType)) {
-      return NextResponse.json({ error: "차량번호/차량타입을 입력해 주세요." }, { status: 400 });
+      return NextResponse.json({ error: "????/????? ??? ???." }, { status: 400 });
     }
 
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
@@ -162,7 +162,7 @@ export async function POST(req: Request) {
     });
 
     if (userError || !userData.user) {
-      return NextResponse.json({ error: userError?.message ?? "계정 생성 실패" }, { status: 400 });
+      return NextResponse.json({ error: userError?.message ?? "?? ?? ??" }, { status: 400 });
     }
 
     const profileInsert = await supabaseAdmin.from("profiles").insert({
@@ -263,7 +263,7 @@ export async function POST(req: Request) {
   const complexId =
     profile!.role === "SUPER" ? targetComplexId ?? profile!.complex_id ?? null : profile!.complex_id ?? null;
   if (!complexId) {
-    return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+    return NextResponse.json({ error: "?? ??? ????." }, { status: 400 });
   }
 
   const { buildingId, unitId } = await resolveBuildingUnit(complexId, buildingCode, unitCode);
@@ -294,7 +294,7 @@ export async function POST(req: Request) {
 
   const emailResult = await sendInviteEmail({ email, token: invite.token });
   if (!emailResult.ok) {
-    return NextResponse.json({ error: emailResult.error ?? "초대 메일 발송 실패" }, { status: 502 });
+    return NextResponse.json({ error: emailResult.error ?? "?? ?? ?? ??" }, { status: 502 });
   }
 
   await supabaseAdmin

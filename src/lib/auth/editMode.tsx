@@ -31,7 +31,10 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
 export function useEditMode() {
   const ctx = useContext(EditModeContext);
   if (!ctx) {
-    throw new Error("EditModeProvider is missing");
+    return {
+      enabled: false,
+      setEnabled: () => {},
+    };
   }
   return ctx;
 }

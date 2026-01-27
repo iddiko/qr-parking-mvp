@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabaseClient } from "@/lib/supabase/client";
@@ -70,7 +70,7 @@ const hasVehicleLabel = (value?: string | null) => {
 
 export default function Page() {
   const { enabled } = useEditMode();
-  const { setContent } = useRightPanel();
+  const { setContent, setVisible } = useRightPanel();
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [form, setForm] = useState({
     email: "",
@@ -84,6 +84,7 @@ export default function Page() {
   const [bulkBatchId, setBulkBatchId] = useState<string>("");
   const [bulkStatus, setBulkStatus] = useState<string>("");
   const [now, setNow] = useState<number>(() => Date.now());
+  const [isComposingInvite, setIsComposingInvite] = useState(false);
 
   const loadInvites = async () => {
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -103,9 +104,30 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    setContent(null);
+    setVisible(false);
+    return () => setVisible(true);
+  }, [setContent, setVisible]);
+
+
+  const handleInviteFieldChange =
+    (field: "email" | "role" | "building_code" | "unit_code") =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const value = event.target.value;
+      setForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+  const handleInviteCompositionStart = () => {
+    setIsComposingInvite(true);
+  };
+
+  const handleInviteCompositionEnd =
+    (field: "email" | "building_code" | "unit_code") =>
+    (event: React.CompositionEvent<HTMLInputElement>) => {
+      setIsComposingInvite(false);
+      const value = event.currentTarget.value;
+      setForm((prev) => ({ ...prev, [field]: value }));
+    };
 
   const inviteCountdown = (invite: InviteRow) => {
     const baseTime = invite.sent_at ?? invite.created_at;
@@ -121,10 +143,7 @@ export default function Page() {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
-      2,
-      "0"
-    )}`;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   };
 
   const onInvite = async (event: React.FormEvent) => {
@@ -149,10 +168,10 @@ export default function Page() {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "초대 생성에 실패했습니다.");
+      setStatus(data.error ?? "초대에 실패했습니다.");
       return;
     }
-    setStatus("초대가 생성되었습니다.");
+    setStatus("초대를 발송했습니다.");
     setForm({ email: "", role: "RESIDENT", building_code: "", unit_code: "" });
     loadInvites();
   };
@@ -175,10 +194,10 @@ export default function Page() {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setUnitStatus(data.error ?? "호수 생성에 실패했습니다.");
+      setUnitStatus(data.error ?? "세대 생성에 실패했습니다.");
       return;
     }
-    setUnitStatus("호수가 생성되었습니다.");
+    setUnitStatus("세대가 생성되었습니다.");
   };
 
   const onBulkFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,7 +212,7 @@ export default function Page() {
     setBulkStatus("");
 
     const validRows = parsed.filter((row) => !row.error);
-    if (validRows.length === 0) {
+    if (validRows.length == 0) {
       return;
     }
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -208,7 +227,7 @@ export default function Page() {
       body: JSON.stringify({ action: "upload", rows: validRows }),
     });
     if (!response.ok) {
-      setBulkStatus("일괄 업로드에 실패했습니다.");
+      setBulkStatus("일괄 등록에 실패했습니다.");
       return;
     }
     const data = await response.json();
@@ -232,7 +251,7 @@ export default function Page() {
   };
 
   const sendBulk = async (ids: string[]) => {
-    if (ids.length === 0) {
+    if (ids.length == 0) {
       setBulkStatus("선택된 초대가 없습니다.");
       return;
     }
@@ -251,7 +270,7 @@ export default function Page() {
       setBulkStatus("발송에 실패했습니다.");
       return;
     }
-    setBulkStatus("발송이 완료되었습니다.");
+    setBulkStatus("발송을 완료했습니다.");
     if (bulkBatchId) {
       const listResponse = await fetch(`/api/invites?batch_id=${bulkBatchId}`, {
         headers: { authorization: `Bearer ${token}` },
@@ -272,109 +291,110 @@ export default function Page() {
     }
   };
 
-  useEffect(() => {
-    const panel = (
-      <div style={{ display: "grid", gap: "12px" }}>
-        <div className="page-title">개별 초대</div>
-        <form onSubmit={onInvite} style={{ display: "grid", gap: "8px" }}>
-          <label>
-            이메일
-            <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          </label>
-          <label>
-            역할
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              <option value="MAIN">메인관리자</option>
-              <option value="SUB">서브관리자</option>
-              <option value="GUARD">경비</option>
-              <option value="RESIDENT">입주민</option>
-            </select>
-          </label>
-          <label>
-            동 코드
-            <input
-              value={form.building_code}
-              onChange={(e) => setForm({ ...form, building_code: e.target.value })}
-            />
-          </label>
-          <label>
-            호수 코드
-            <input value={form.unit_code} onChange={(e) => setForm({ ...form, unit_code: e.target.value })} />
-          </label>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <button type="button" onClick={createUnit}>
-              호수 생성
-            </button>
-            {unitStatus ? <div className="muted">{unitStatus}</div> : null}
-          </div>
-          <button type="submit">초대 보내기</button>
-          {status ? <div className="muted">{status}</div> : null}
-        </form>
-      </div>
-    );
-
-    setContent(panel);
-    return () => setContent(null);
-  }, [form, setContent, status, unitStatus]);
-
   return (
     <MenuGuard roleGroup="sub" toggleKey="users">
       <div>
-        <h1 className="page-title">관리자 사용자</h1>
+        <h1 className="page-title">입주민 등록</h1>
 
-        <section>
-          <h2 className="page-title">초대 목록</h2>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th align="left">이메일</th>
-                <th align="left">역할</th>
-                <th align="left">상태</th>
-                <th align="left">발송일</th>
-                <th align="left">남은시간</th>
-                <th align="left">승인일</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invites.map((invite) => (
-                <tr key={invite.id}>
-                  <td>{invite.email}</td>
-                  <td>{roleLabel(invite.role)}</td>
-                  <td>{inviteStatusLabel(invite.status)}</td>
-                  <td>{invite.sent_at ?? "-"}</td>
-                  <td>{inviteCountdown(invite)}</td>
-                  <td>{invite.accepted_at ?? "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+        <div className="users-panel-grid users-panel-grid--cards">
+          <form className="users-invite-grid" onSubmit={onInvite}>
+            <div className="users-card">
+              <div className="page-title">{"동/세대"}</div>
+              <div className="users-card-row">
+                <div className="users-invite-row">
+                  <label className="users-invite-field">
+                    <span>{"동 코드"}</span>
+                    <input
+                      value={form.building_code}
+                      onChange={handleInviteFieldChange("building_code")}
+                      onCompositionStart={handleInviteCompositionStart}
+                      onCompositionEnd={handleInviteCompositionEnd("building_code")}
+                    />
+                  </label>
+                  <label className="users-invite-field">
+                    <span>{"세대 코드"}</span>
+                    <input
+                      value={form.unit_code}
+                      onChange={handleInviteFieldChange("unit_code")}
+                      onCompositionStart={handleInviteCompositionStart}
+                      onCompositionEnd={handleInviteCompositionEnd("unit_code")}
+                    />
+                  </label>
+                </div>
+                <div className="users-invite-actions users-invite-actions--end">
+                  <button type="button" onClick={createUnit}>
+                    {"세대 생성"}
+                  </button>
+                </div>
+              </div>
+              {unitStatus ? <div className="muted">{unitStatus}</div> : null}
+            </div>
 
-        <section style={{ marginTop: "24px" }}>
-          <h2 className="page-title">일괄 초대</h2>
-          <div style={{ display: "grid", gap: "8px", maxWidth: "640px" }}>
+            <div className="users-card">
+              <div className="page-title">{"개별 초대"}</div>
+              <div className="users-card-row">
+                <div className="users-invite-row">
+                  <label className="users-invite-field">
+                    <span>{"이메일"}</span>
+                    <input
+                      value={form.email}
+                      onChange={handleInviteFieldChange("email")}
+                      onCompositionStart={handleInviteCompositionStart}
+                      onCompositionEnd={handleInviteCompositionEnd("email")}
+                    />
+                  </label>
+                  <label className="users-invite-field">
+                    <span>{"역할"}</span>
+                    <select value={form.role} onChange={handleInviteFieldChange("role")}>
+                      <option value="MAIN">{"메인관리자"}</option>
+                      <option value="SUB">{"서브관리자"}</option>
+                      <option value="GUARD">{"경비"}</option>
+                      <option value="RESIDENT">{"입주민"}</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="users-invite-actions users-invite-actions--end">
+                  <button type="submit">{"초대 발송"}</button>
+                </div>
+              </div>
+              {status ? <div className="muted">{status}</div> : null}
+            </div>
+          </form>
+
+          <div className="users-card">
+            <div className="page-title">{"일괄 초대"}</div>
             <a href="/templates/invites_template.csv" download>
-              CSV 양식 다운로드
+              CSV 템플릿 다운로드
             </a>
-            <input type="file" accept=".csv" onChange={onBulkFile} />
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => sendBulk(bulkRows.map((row) => row.id).filter(Boolean) as string[])}>
-                전체 발송
-              </button>
-              <button
-                onClick={() =>
-                  sendBulk(
-                    bulkRows
-                      .filter((row) => row.selected && row.id)
-                      .map((row) => row.id as string)
-                  )
-                }
-              >
-                선택 발송
-              </button>
+            <div className="bulk-invite-row">
+              <input type="file" accept=".csv" onChange={onBulkFile} />
+              <div className="bulk-invite-actions">
+                <button
+                  className="bulk-send-button bulk-send-button--primary"
+                  onClick={() => sendBulk(bulkRows.map((row) => row.id).filter(Boolean) as string[])}
+                >
+                  {"전체 발송"}
+                </button>
+                <button
+                  className="bulk-send-button bulk-send-button--ghost"
+                  onClick={() =>
+                    sendBulk(
+                      bulkRows
+                        .filter((row) => row.selected && row.id)
+                        .map((row) => row.id as string)
+                    )
+                  }
+                >
+                  {"선택 발송"}
+                </button>
+              </div>
             </div>
             {bulkStatus ? <div className="muted">{bulkStatus}</div> : null}
           </div>
+        </div>
+
+<section style={{ marginTop: "24px" }}>
+          <h2 className="page-title">일괄 초대</h2>
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
             <thead>
               <tr>
@@ -425,6 +445,35 @@ export default function Page() {
             </tbody>
           </table>
         </section>
+        <section style={{ marginTop: "24px" }}>
+          <h2 className="page-title">초대 목록</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th align="left">이메일</th>
+                <th align="left">역할</th>
+                <th align="left">상태</th>
+                <th align="left">발송일</th>
+                <th align="left">남은시간</th>
+                <th align="left">승인일</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invites.map((invite) => (
+                <tr key={invite.id}>
+                  <td>{invite.email}</td>
+                  <td>{roleLabel(invite.role)}</td>
+                  <td>{inviteStatusLabel(invite.status)}</td>
+                  <td>{invite.sent_at ?? "-"}</td>
+                  <td>{inviteCountdown(invite)}</td>
+                  <td>{invite.accepted_at ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        
       </div>
     </MenuGuard>
   );

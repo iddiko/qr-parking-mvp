@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getProfileFromRequest } from "@/lib/auth/session";
 import { requireAdminRole, requireAuth, requireEditMode } from "@/lib/auth/guards";
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
   let query = supabaseAdmin
     .from("profiles")
     .select(
-      "id, email, role, name, phone, complex_id, building_id, unit_id, complexes(name), buildings(code,name), units(code), profile_phones(phone,is_primary), vehicles(id, qrs(id, status, code, created_at, expires_at))"
+      "id, email, role, name, phone, complex_id, building_id, unit_id, complexes(name), buildings(code,name), units(code), profile_phones(phone,is_primary), vehicles(id, plate, vehicle_type, qrs(id, status, code, created_at, expires_at))"
     )
     .order("created_at", { ascending: false });
 
@@ -59,12 +59,12 @@ export async function GET(req: Request) {
     }
   } else {
     if (!profile!.complex_id) {
-      return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+      return NextResponse.json({ error: "?? ??? ????." }, { status: 400 });
     }
     query = query.eq("complex_id", profile!.complex_id);
     if (isSub) {
       if (!profile!.building_id) {
-        return NextResponse.json({ error: "동 정보가 없습니다." }, { status: 400 });
+        return NextResponse.json({ error: "? ??? ????." }, { status: 400 });
       }
       query = query.eq("building_id", profile!.building_id);
     } else if (filterBuildingId) {
@@ -117,9 +117,13 @@ export async function PUT(req: Request) {
   const complexId = body.complex_id as string | null | undefined;
   const buildingId = body.building_id as string | null | undefined;
   const unitId = body.unit_id as string | null | undefined;
+  const hasVehicle = body.has_vehicle as boolean | undefined;
+  const vehicleId = body.vehicle_id as string | undefined;
+  const vehiclePlate = body.vehicle_plate as string | undefined;
+  const vehicleType = body.vehicle_type as string | undefined;
 
   if (!memberId) {
-    return NextResponse.json({ error: "회원 ID가 필요합니다." }, { status: 400 });
+    return NextResponse.json({ error: "?? ID? ?????." }, { status: 400 });
   }
 
   if (profile!.role !== "SUPER") {
@@ -129,13 +133,13 @@ export async function PUT(req: Request) {
       .eq("id", memberId)
       .single();
     if (!target?.complex_id || target.complex_id !== profile!.complex_id) {
-      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "?? ??? ????." }, { status: 403 });
     }
     if (profile!.role === "SUB" && profile!.building_id && target.building_id !== profile!.building_id) {
-      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "?? ??? ????." }, { status: 403 });
     }
     if (complexId && complexId !== profile!.complex_id) {
-      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "?? ??? ????." }, { status: 403 });
     }
   }
 
@@ -165,7 +169,7 @@ export async function PUT(req: Request) {
       .eq("id", nextBuildingId)
       .single();
     if (!buildingRow || buildingRow.complex_id !== scopeComplexId) {
-      return NextResponse.json({ error: "단지 정보가 일치하지 않습니다." }, { status: 400 });
+      return NextResponse.json({ error: "?? ??? ???? ????." }, { status: 400 });
     }
   }
 
@@ -176,7 +180,7 @@ export async function PUT(req: Request) {
       .eq("id", nextUnitId)
       .single();
     if (!unitRow || unitRow.building_id !== nextBuildingId) {
-      return NextResponse.json({ error: "동 정보가 일치하지 않습니다." }, { status: 400 });
+      return NextResponse.json({ error: "? ??? ???? ????." }, { status: 400 });
     }
   }
 
@@ -206,7 +210,7 @@ export async function PUT(req: Request) {
         .single();
       const qrComplexId = qrRow?.vehicles?.[0]?.profiles?.[0]?.complex_id ?? null;
       if (!qrComplexId || qrComplexId !== profile!.complex_id) {
-        return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
+        return NextResponse.json({ error: "?? ??? ????." }, { status: 403 });
       }
     }
     const expiresAtValue = qrExpiresAt ? new Date(qrExpiresAt).toISOString() : null;
@@ -216,6 +220,42 @@ export async function PUT(req: Request) {
       .eq("id", qrId);
     if (qrError) {
       return NextResponse.json({ error: qrError.message }, { status: 400 });
+    }
+  }
+
+  if (hasVehicle === false) {
+    const { error: vehicleRemoveError } = await supabaseAdmin
+      .from("vehicles")
+      .delete()
+      .eq("owner_profile_id", memberId);
+    if (vehicleRemoveError) {
+      return NextResponse.json({ error: vehicleRemoveError.message }, { status: 400 });
+    }
+  }
+
+  if (hasVehicle === true) {
+    if (!vehiclePlate) {
+      return NextResponse.json({ error: "차량 번호를 입력해주세요." }, { status: 400 });
+    }
+    const nextVehicleType = vehicleType || "ICE";
+    if (vehicleId) {
+      const { error: vehicleUpdateError } = await supabaseAdmin
+        .from("vehicles")
+        .update({ plate: vehiclePlate, vehicle_type: nextVehicleType })
+        .eq("id", vehicleId)
+        .eq("owner_profile_id", memberId);
+      if (vehicleUpdateError) {
+        return NextResponse.json({ error: vehicleUpdateError.message }, { status: 400 });
+      }
+    } else {
+      const { error: vehicleInsertError } = await supabaseAdmin.from("vehicles").insert({
+        owner_profile_id: memberId,
+        plate: vehiclePlate,
+        vehicle_type: nextVehicleType,
+      });
+      if (vehicleInsertError) {
+        return NextResponse.json({ error: vehicleInsertError.message }, { status: 400 });
+      }
     }
   }
 
@@ -252,7 +292,7 @@ export async function DELETE(req: Request) {
   const body = await req.json();
   const memberId = body.id as string;
   if (!memberId) {
-    return NextResponse.json({ error: "회원 ID가 필요합니다." }, { status: 400 });
+    return NextResponse.json({ error: "?? ID? ?????." }, { status: 400 });
   }
 
   if (profile!.role !== "SUPER") {
@@ -262,7 +302,7 @@ export async function DELETE(req: Request) {
       .eq("id", memberId)
       .single();
     if (!target?.complex_id || target.complex_id !== profile!.complex_id) {
-      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "?? ??? ????." }, { status: 403 });
     }
   }
 

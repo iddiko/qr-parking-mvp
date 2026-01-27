@@ -13,16 +13,25 @@ export function inviteEmailTemplate(link: string) {
 export function scanEmailTemplate(payload: {
   timestamp: string;
   location: string;
+  locationLat?: number | null;
+  locationLng?: number | null;
   result: string;
   vehiclePlate?: string | null;
 }) {
-  const resultLabel = payload.result === "RESIDENT" ? "입주민 확인" : "단속대상";
+  const resultLabel = payload.result === "RESIDENT" ? "Resident" : "Enforcement";
+  const hasCoords =
+    typeof payload.locationLat === "number" && typeof payload.locationLng === "number";
+  const mapLink = hasCoords
+    ? `https://www.google.com/maps?q=${payload.locationLat},${payload.locationLng}`
+    : null;
   return {
     subject: "QR Scan Alert",
     html: `
       <div>
         <p>Scan time: ${payload.timestamp}</p>
         <p>Location: ${payload.location}</p>
+        ${hasCoords ? `<p>Coordinates: ${payload.locationLat}, ${payload.locationLng}</p>` : ""}
+        ${mapLink ? `<p>Map: <a href="${mapLink}">${mapLink}</a></p>` : ""}
         <p>Result: ${resultLabel}</p>
         <p>Plate: ${payload.vehiclePlate ?? "-"}</p>
       </div>

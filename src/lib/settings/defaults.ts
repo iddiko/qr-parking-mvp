@@ -1,4 +1,4 @@
-﻿import type { MenuToggles, MenuOrder, MenuLabels } from "./types";
+import type { MenuToggles, MenuOrder, MenuLabels } from "./types";
 
 export const defaultMenuToggles: MenuToggles = {
   main: {
@@ -110,10 +110,10 @@ export const defaultMenuLabels: MenuLabels = {
     complexes: "단지 관리",
     buildings: "동 관리",
     members: "회원관리",
-    users: "사용자",
+    users: "사용자 초대",
     approvals: "승인",
     "parking.qrs": "주차 QR",
-    "parking.scans": "경비 스캔 리스트",
+    "parking.scans": "경비 스캔 리스트(log)",
     "meter.cycles": "검침 주기",
     "meter.submissions": "검침 제출",
     notices: "공지",
@@ -126,10 +126,10 @@ export const defaultMenuLabels: MenuLabels = {
     complexes: "단지 관리",
     buildings: "동 관리",
     members: "회원관리",
-    users: "사용자",
+    users: "사용자 초대",
     approvals: "승인",
     "parking.qrs": "주차 QR",
-    "parking.scans": "경비 스캔 리스트",
+    "parking.scans": "경비 스캔 리스트(log)",
     "meter.cycles": "검침 주기",
     "meter.submissions": "검침 제출",
     notices: "공지",
@@ -142,10 +142,10 @@ export const defaultMenuLabels: MenuLabels = {
     complexes: "단지 관리",
     buildings: "동 관리",
     members: "회원관리",
-    users: "사용자",
+    users: "사용자 초대",
     approvals: "승인",
     "parking.qrs": "주차 QR",
-    "parking.scans": "경비 스캔 리스트",
+    "parking.scans": "경비 스캔 리스트(log)",
     "meter.cycles": "검침 주기",
     "meter.submissions": "검침 제출",
     notices: "공지",
@@ -154,8 +154,8 @@ export const defaultMenuLabels: MenuLabels = {
     notifications: "알림",
   },
   guard: {
-    scan: "스캔",
-    history: "이력",
+    scan: "QR 스캔",
+    history: "스캔 이력",
     notices: "공지",
     mypage: "마이페이지",
     notifications: "알림",
@@ -163,7 +163,7 @@ export const defaultMenuLabels: MenuLabels = {
   resident: {
     scan: "QR 스캔",
     myQr: "내 QR",
-    alerts: "스캔 알림",
+    alerts: "알림 내역",
     meter: "검침",
     notices: "공지",
     mypage: "마이페이지",

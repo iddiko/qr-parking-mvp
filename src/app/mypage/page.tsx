@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -34,5 +34,5 @@ export default function Page() {
     route();
   }, [router]);
 
-  return <div className="muted">마이페이지로 이동 중...</div>;
+  return <div className="muted">?????? ?? ?...</div>;
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabaseClient } from "@/lib/supabase/client";
 import { Forbidden } from "@/components/layout/Forbidden";
 import { MenuGuard } from "@/components/layout/MenuGuard";
+import { ProfileMenuContent } from "@/components/layout/ProfileMenu";
 import { useEditMode } from "@/lib/auth/editMode";
 
 type Profile = {
@@ -85,6 +86,7 @@ export default function Page() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [complexes, setComplexes] = useState<ComplexRow[]>([]);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -110,6 +112,20 @@ export default function Page() {
     return () => window.removeEventListener("complexSelectionChanged", handleSelection as EventListener);
   }, []);
 
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      return;
+    }
+    const close = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".profile-menu")) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [profileMenuOpen]);
+
   const handleComplexChange = (value: string) => {
     setSelectedComplexId(value);
     if (value === "all") {
@@ -127,11 +143,6 @@ export default function Page() {
       new CustomEvent("complexSelectionChanged", { detail: { complexId: value, complexName: name } })
     );
   };
-
-  useEffect(() => {
-    document.body.classList.add("dashboard-super");
-    return () => document.body.classList.remove("dashboard-super");
-  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -677,22 +688,29 @@ export default function Page() {
               </svg>
             </button>
             <div className="mobile-appbar__title">QR Parking MVP</div>
-            <button
-              type="button"
-              className="mobile-appbar__profile"
-              onClick={() => router.push("/admin/mypage")}
-              aria-label="마이페이지"
-            >
-              {avatarUrl ? (
-                <img className="mobile-appbar__avatar" src={avatarUrl} alt="프로필 이미지" />
-              ) : (
-                <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  <circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  <path d="M7 18c1.4-2.2 3.8-3.5 5-3.5s3.6 1.3 5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                </svg>
-              )}
-            </button>
+            <div className="profile-menu">
+  <button
+    type="button"
+    className="mobile-appbar__profile"
+    onClick={() => setProfileMenuOpen((prev) => !prev)}
+    aria-label="?????"
+  >
+    {avatarUrl ? (
+      <img className="mobile-appbar__avatar" src={avatarUrl} alt="??? ???" />
+    ) : (
+      <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M7 18c1.4-2.2 3.8-3.5 5-3.5s3.6 1.3 5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    )}
+  </button>
+  {profileMenuOpen ? (
+    <div className="profile-menu__panel">
+      <ProfileMenuContent variant="popover" onNavigate={() => setProfileMenuOpen(false)} />
+    </div>
+  ) : null}
+</div>
           </div>
 
           <div className="mobile-filterbar">

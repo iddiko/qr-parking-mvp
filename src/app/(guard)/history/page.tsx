@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabaseClient } from "@/lib/supabase/client";
 import { MenuGuard } from "@/components/layout/MenuGuard";
+import { useRightPanel } from "@/components/layout/RightPanelContext";
 
 type ScanRow = {
   id: string;
@@ -20,7 +21,7 @@ type ScanRow = {
 
 const resultLabel = (value?: string) => {
   if (value === "RESIDENT") {
-    return "입주민";
+    return "입주민 차량";
   }
   if (value === "ENFORCEMENT") {
     return "단속 대상";
@@ -32,6 +33,7 @@ export default function Page() {
   const [scans, setScans] = useState<ScanRow[]>([]);
   const [status, setStatus] = useState("");
   const [selected, setSelected] = useState<ScanRow | null>(null);
+  const { setVisible } = useRightPanel();
 
   const formatTime = (value: string) => {
     const date = new Date(value);
@@ -49,6 +51,11 @@ export default function Page() {
   };
 
   useEffect(() => {
+    setVisible(false);
+    return () => setVisible(true);
+  }, [setVisible]);
+
+  useEffect(() => {
     const load = async () => {
       const { data: sessionData } = await supabaseClient.auth.getSession();
       const token = sessionData.session?.access_token ?? "";
@@ -57,7 +64,7 @@ export default function Page() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        setStatus(data.error ?? "스캔 이력을 불러오지 못했습니다.");
+        setStatus(data.error ?? "스캔 목록을 불러오는 데 실패했습니다.");
         return;
       }
       const data = await response.json();
@@ -69,7 +76,7 @@ export default function Page() {
   return (
     <MenuGuard roleGroup="guard" toggleKey="history">
       <div>
-        <h1 className="page-title">경비 스캔 리스트</h1>
+        <h1 className="page-title">경비 스캔 리스트(log)</h1>
         {status ? <div className="muted">{status}</div> : null}
         <div className="scan-list">
           {scans.map((scan) => (
@@ -93,15 +100,15 @@ export default function Page() {
             <div className="scan-modal" role="dialog" aria-modal="true">
               <div className="scan-modal__title">스캔 상세</div>
               <div className="scan-modal__row">
-                <span className="muted">시간</span>
+                <span className="muted">스캔 시간</span>
                 <span>{formatTime(selected.created_at)}</span>
               </div>
               <div className="scan-modal__row">
-                <span className="muted">위치</span>
+                <span className="muted">스캔 위치</span>
                 <span>{selected.location_label}</span>
               </div>
               <div className="scan-modal__row">
-                <span className="muted">결과</span>
+                <span className="muted">판정 결과</span>
                 <span>{resultLabel(selected.result)}</span>
               </div>
               <div className="scan-modal__row">
@@ -109,7 +116,7 @@ export default function Page() {
                 <span>{selected.vehicle_plate ?? "-"}</span>
               </div>
               <div className="scan-modal__row">
-                <span className="muted">이메일</span>
+                <span className="muted">알림 수신자</span>
                 <span>{selected.qrs?.vehicles?.profiles?.email ?? "-"}</span>
               </div>
               <button type="button" className="scan-modal__close" onClick={() => setSelected(null)}>

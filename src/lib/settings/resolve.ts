@@ -1,4 +1,4 @@
-﻿import type { MenuToggles, MenuOrder, MenuLabels } from "./types";
+import type { MenuToggles, MenuOrder, MenuLabels } from "./types";
 import { defaultMenuLabels, defaultMenuOrder, defaultMenuToggles } from "./defaults";
 
 export function resolveMenuToggles(input?: Partial<MenuToggles> | null): MenuToggles {

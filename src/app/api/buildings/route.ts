@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const complexId =
     profile!.role === "SUPER" ? requestedComplexId ?? profile!.complex_id : profile!.complex_id;
   if (!complexId) {
-    return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+    return NextResponse.json({ error: "?? ??? ?? ? ????." }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
@@ -83,10 +83,10 @@ export async function POST(req: Request) {
     profile!.role === "SUPER" ? (body.complex_id as string | undefined) ?? profile!.complex_id : profile!.complex_id;
 
   if (!complexId) {
-    return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+    return NextResponse.json({ error: "?? ??? ?? ? ????." }, { status: 400 });
   }
   if (!code || !name) {
-    return NextResponse.json({ error: "동 코드와 이름이 필요합니다." }, { status: 400 });
+    return NextResponse.json({ error: "? ??? ? ??? ??????." }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
@@ -99,4 +99,125 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
   return NextResponse.json({ building: data });
+}
+
+export async function PATCH(req: Request) {
+  const { profile } = await getProfileFromRequest(req);
+  const authCheck = requireAuth(profile);
+  if (!authCheck.ok) {
+    return NextResponse.json({ error: authCheck.message }, { status: authCheck.status });
+  }
+  const adminCheck = requireAdminRole(profile);
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.message }, { status: adminCheck.status });
+  }
+  if (profile!.role === "MAIN") {
+    const toggleCheck = await requireMenuToggle(profile!, "main", "buildings");
+    if (!toggleCheck.ok) {
+      return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+    }
+  }
+  if (profile!.role === "SUB") {
+    const toggleCheck = await requireMenuToggle(profile!, "sub", "buildings");
+    if (!toggleCheck.ok) {
+      return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+    }
+  }
+  if (profile!.role === "SUPER") {
+    const editCheck = requireEditMode(profile!, req);
+    if (!editCheck.ok) {
+      return NextResponse.json({ error: editCheck.message }, { status: editCheck.status });
+    }
+  }
+
+  const body = await req.json();
+  const id = body.id as string;
+  const code = body.code as string;
+  const name = body.name as string;
+
+  if (!id || !code || !name) {
+    return NextResponse.json({ error: "? ??? ? ??? ??????." }, { status: 400 });
+  }
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("buildings")
+    .select("id, complex_id")
+    .eq("id", id)
+    .single();
+
+  if (existingError || !existing) {
+    return NextResponse.json({ error: "? ??? ?? ? ????." }, { status: 404 });
+  }
+
+  if (profile!.role !== "SUPER" && profile!.complex_id !== existing.complex_id) {
+    return NextResponse.json({ error: "?? ??? ?? ??? ? ????." }, { status: 403 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("buildings")
+    .update({ code, name })
+    .eq("id", id)
+    .select("id, code, name, complex_id")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  return NextResponse.json({ building: data });
+}
+
+export async function DELETE(req: Request) {
+  const { profile } = await getProfileFromRequest(req);
+  const authCheck = requireAuth(profile);
+  if (!authCheck.ok) {
+    return NextResponse.json({ error: authCheck.message }, { status: authCheck.status });
+  }
+  const adminCheck = requireAdminRole(profile);
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.message }, { status: adminCheck.status });
+  }
+  if (profile!.role === "MAIN") {
+    const toggleCheck = await requireMenuToggle(profile!, "main", "buildings");
+    if (!toggleCheck.ok) {
+      return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+    }
+  }
+  if (profile!.role === "SUB") {
+    const toggleCheck = await requireMenuToggle(profile!, "sub", "buildings");
+    if (!toggleCheck.ok) {
+      return NextResponse.json({ error: toggleCheck.message }, { status: toggleCheck.status });
+    }
+  }
+  if (profile!.role === "SUPER") {
+    const editCheck = requireEditMode(profile!, req);
+    if (!editCheck.ok) {
+      return NextResponse.json({ error: editCheck.message }, { status: editCheck.status });
+    }
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const id = body.id as string | undefined;
+  if (!id) {
+    return NextResponse.json({ error: "??? ?? ??????." }, { status: 400 });
+  }
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("buildings")
+    .select("id, complex_id")
+    .eq("id", id)
+    .single();
+
+  if (existingError || !existing) {
+    return NextResponse.json({ error: "? ??? ?? ? ????." }, { status: 404 });
+  }
+
+  if (profile!.role !== "SUPER" && profile!.complex_id !== existing.complex_id) {
+    return NextResponse.json({ error: "?? ??? ?? ??? ? ????." }, { status: 403 });
+  }
+
+  const { error } = await supabaseAdmin.from("buildings").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  return NextResponse.json({ ok: true });
 }

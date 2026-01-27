@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ export function Header({ complexName, showEditToggle, onMenuToggle }: HeaderProp
   const { enabled, setEnabled } = useEditMode();
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -44,6 +45,36 @@ export function Header({ complexName, showEditToggle, onMenuToggle }: HeaderProp
     load();
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadBranding = async (complexId?: string | null) => {
+      const query =
+        complexId && complexId !== "all"
+          ? `?complex_id=${encodeURIComponent(complexId)}`
+          : "";
+      const res = await fetch(`/api/branding${query}`, { cache: "no-store" });
+      if (!res.ok) {
+        return;
+      }
+      const data = await res.json();
+      setLogoUrl(data?.logo_url ?? null);
+    };
+
+    const readSelection = () => {
+      const stored = window.localStorage.getItem("selectedComplexId") ?? "";
+      void loadBranding(stored || null);
+    };
+
+    readSelection();
+
+    const handleComplexChange = () => readSelection();
+    window.addEventListener("complexSelectionChanged", handleComplexChange);
+    window.addEventListener("storage", handleComplexChange);
+    return () => {
+      window.removeEventListener("complexSelectionChanged", handleComplexChange);
+      window.removeEventListener("storage", handleComplexChange);
     };
   }, []);
 
@@ -95,7 +126,13 @@ export function Header({ complexName, showEditToggle, onMenuToggle }: HeaderProp
             <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
-        <button className="app-logo" type="button" onClick={() => router.push("/")}>QR</button>
+        <button
+          className={`app-logo${logoUrl ? " app-logo--image" : ""}`}
+          type="button"
+          onClick={() => router.push("/")}
+        >
+          {logoUrl ? <img src={logoUrl} alt="로고" /> : "QR"}
+        </button>
         <div className="app-header__titles">
           <div className="app-title">QR Parking MVP</div>
         </div>
@@ -115,7 +152,7 @@ export function Header({ complexName, showEditToggle, onMenuToggle }: HeaderProp
             onClick={() => setMenuOpen((prev) => !prev)}
           >
             {avatarUrl ? (
-              <img className="header-avatar" src={avatarUrl} alt="프로필 이미지" />
+              <img className="header-avatar" src={avatarUrl} alt="마이페이지" />
             ) : (
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="8" r="4" />
@@ -123,7 +160,11 @@ export function Header({ complexName, showEditToggle, onMenuToggle }: HeaderProp
               </svg>
             )}
           </button>
-          {menuOpen ? <ProfileMenuContent variant="popover" onNavigate={() => setMenuOpen(false)} /> : null}
+          {menuOpen ? (
+            <div className="profile-menu__panel">
+              <ProfileMenuContent variant="popover" onNavigate={() => setMenuOpen(false)} />
+            </div>
+          ) : null}
         </div>
       </div>
     </header>

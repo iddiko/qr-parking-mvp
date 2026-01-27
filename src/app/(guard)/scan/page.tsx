@@ -18,7 +18,7 @@ type ScanResult = {
   resident: ScanResident | null;
 };
 
-const FALLBACK_LOCATION = "위치 미지정";
+const FALLBACK_LOCATION = "위치 정보 없음";
 
 const extractQrCode = (rawValue: string) => {
   if (!rawValue) {
@@ -50,6 +50,23 @@ export default function Page() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [status, setStatus] = useState("");
   const [scanning, setScanning] = useState(false);
+
+  const resolveCoords = async () => {
+    if (coords || !navigator.geolocation) {
+      return coords;
+    }
+    return await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = Number(position.coords.latitude.toFixed(6));
+          const lng = Number(position.coords.longitude.toFixed(6));
+          resolve({ lat, lng });
+        },
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    });
+  };
 
   useEffect(() => {
     const loadLocation = async () => {
@@ -126,7 +143,11 @@ export default function Page() {
   const submitScan = async (code: string) => {
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const token = sessionData.session?.access_token ?? "";
-    const finalLocation = coords ? `위치 (${coords.lat}, ${coords.lng})` : locationLabel || FALLBACK_LOCATION;
+    const freshCoords = await resolveCoords();
+    if (freshCoords && !coords) {
+      setCoords(freshCoords);
+    }
+    const finalLocation = freshCoords ? `GPS (${freshCoords.lat}, ${freshCoords.lng})` : locationLabel || FALLBACK_LOCATION;
     const response = await fetch("/api/scan", {
       method: "POST",
       headers: {
@@ -136,14 +157,14 @@ export default function Page() {
       body: JSON.stringify({
         code,
         location_label: finalLocation,
-        location_lat: coords?.lat ?? null,
-        location_lng: coords?.lng ?? null,
+        location_lat: freshCoords?.lat ?? null,
+        location_lng: freshCoords?.lng ?? null,
         vehicle_plate: null,
       }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "스캔 결과를 불러올 수 없습니다.");
+      setStatus(data.error ?? "스캔 요청에 실패했습니다.");
       return;
     }
     const data = await response.json();
@@ -195,7 +216,7 @@ export default function Page() {
               return;
             }
           } catch {
-            setStatus("QR 스캔을 시작할 수 없습니다.");
+            setStatus("QR 인식에 실패했습니다.");
             stopCamera();
             return;
           }
@@ -205,9 +226,9 @@ export default function Page() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         if (message.toLowerCase().includes("permission") || message.toLowerCase().includes("denied")) {
-          setStatus("브라우저 설정에서 카메라 권한을 허용해 주세요.");
+          setStatus("카메라 권한이 필요합니다.");
         } else {
-          setStatus("카메라를 켤 수 없습니다.");
+          setStatus("카메라를 찾을 수 없습니다.");
         }
         stopCamera();
       }
@@ -216,7 +237,7 @@ export default function Page() {
 
     try {
       if (!videoRef.current) {
-        setStatus("카메라를 준비할 수 없습니다.");
+        setStatus("카메라를 찾을 수 없습니다.");
         return;
       }
       const reader = zxingRef.current ?? new BrowserQRCodeReader();
@@ -232,13 +253,13 @@ export default function Page() {
       });
       zxingStopRef.current = () => controls.stop();
     } catch {
-      setStatus("QR 스캔을 시작할 수 없습니다.");
+      setStatus("QR 인식에 실패했습니다.");
       stopCamera();
     }
   };
 
   const ownerPhone = result?.resident?.phone ?? "";
-  const resultLabel = result?.result === "RESIDENT" ? "입주민" : "단속대상";
+  const resultLabel = result?.result === "RESIDENT" ? "입주민" : "단속 대상";
 
   const onNotify = () => {
     if (!result?.resident?.email) {
@@ -304,8 +325,8 @@ export default function Page() {
                 className="scan-action-button"
                 onClick={onCall}
                 disabled={!ownerPhone}
-                aria-label="전화 걸기"
-                title="전화 걸기"
+                aria-label="전화하기"
+                title="전화하기"
               >
                 <span className="scan-action-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" role="img">
@@ -321,8 +342,8 @@ export default function Page() {
                 className="scan-action-button"
                 onClick={onMessage}
                 disabled={!ownerPhone}
-                aria-label="메시지 보내기"
-                title="메시지 보내기"
+                aria-label="문자 보내기"
+                title="문자 보내기"
               >
                 <span className="scan-action-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" role="img">
@@ -337,7 +358,7 @@ export default function Page() {
           </div>
         ) : (
           <div className="scan-card scan-card--empty">
-            <div className="muted">QR을 스캔하면 결과가 표시됩니다.</div>
+            <div className="muted">QR을 스캔해 주세요.</div>
           </div>
         )}
 
@@ -345,10 +366,10 @@ export default function Page() {
           <video ref={videoRef} className="scan-video" playsInline muted />
           <div className="scan-controls">
             <button type="button" onClick={startScan} disabled={scanning}>
-              카메라 켜기
+              스캔 시작
             </button>
             <button type="button" onClick={stopCamera} disabled={!scanning}>
-              카메라 끄기
+              스캔 중지
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getProfileFromRequest } from "@/lib/auth/session";
 import { requireAdminRole, requireAuth, requireEditMode } from "@/lib/auth/guards";
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
       ? url.searchParams.get("complex_id") ?? currentProfile.complex_id
       : currentProfile.complex_id;
   if (!targetComplexId) {
-    return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+    return NextResponse.json({ error: "?? ??? ????." }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
@@ -82,7 +82,7 @@ export async function PUT(req: Request) {
   const targetComplexId =
     profile!.role === "SUPER" ? (body.complex_id as string | undefined) ?? profile!.complex_id : profile!.complex_id;
   if (!targetComplexId) {
-    return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+    return NextResponse.json({ error: "?? ??? ????." }, { status: 400 });
   }
   const editCheck = requireEditMode(profile!, req);
   if (!editCheck.ok) {

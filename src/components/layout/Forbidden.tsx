@@ -1,4 +1,4 @@
-﻿export function Forbidden({ message }: { message?: string }) {
+export function Forbidden({ message }: { message?: string }) {
   return (
     <div>
       <h1 className="page-title">403</h1>

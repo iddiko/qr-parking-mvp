@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getProfileFromRequest } from "@/lib/auth/session";
 import { requireAdminRole, requireAuth, requireEditMode } from "@/lib/auth/guards";
@@ -37,11 +37,11 @@ export async function GET(req: Request) {
         ? url.searchParams.get("complex_id") ?? profile!.complex_id
         : profile!.complex_id;
     if (!targetComplexId) {
-      return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+      return NextResponse.json({ error: "?? ??? ????." }, { status: 400 });
     }
     const { data, error } = await supabaseAdmin
       .from("meter_cycles")
-      .select("id, title, start_date, end_date, status, created_at")
+      .select("id, title, start_date, end_date, status, created_at, created_by, profiles(name, email)")
       .eq("complex_id", targetComplexId)
       .order("created_at", { ascending: false });
     if (error) {
@@ -168,10 +168,10 @@ export async function POST(req: Request) {
       .eq("id", cycleId)
       .single();
     if (error || !cycleData) {
-      return { ok: false, status: 404, error: "검침 주기를 찾을 수 없습니다." };
+      return { ok: false, status: 404, error: "?? ??? ?? ? ????." };
     }
     if (profile!.role !== "SUPER" && cycleData.complex_id !== profile!.complex_id) {
-      return { ok: false, status: 403, error: "접근 권한이 없습니다." };
+      return { ok: false, status: 403, error: "?? ??? ????." };
     }
     return { ok: true, data: cycleData };
   };
@@ -203,7 +203,7 @@ export async function POST(req: Request) {
     const targetComplexId =
       profile!.role === "SUPER" ? (body.complex_id as string | undefined) ?? profile!.complex_id : profile!.complex_id;
     if (!targetComplexId) {
-      return NextResponse.json({ error: "단지 정보가 없습니다." }, { status: 400 });
+      return NextResponse.json({ error: "?? ??? ????." }, { status: 400 });
     }
     if (!title) {
       return NextResponse.json({ error: "title required" }, { status: 400 });
@@ -214,6 +214,7 @@ export async function POST(req: Request) {
       start_date: startDate,
       end_date: endDate,
       status: "OPEN",
+      created_by: profile!.id,
     });
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

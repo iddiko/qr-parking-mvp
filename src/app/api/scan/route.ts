@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getProfileFromRequest } from "@/lib/auth/session";
 import { requireAuth, requireEditMode } from "@/lib/auth/guards";
@@ -102,6 +102,8 @@ export async function POST(req: Request) {
     guard_profile_id: profile!.id,
     complex_id: scanComplexId,
     location_label: locationLabel,
+    location_lat: locationLat ?? null,
+    location_lng: locationLng ?? null,
     result,
     vehicle_plate: vehiclePlate ?? vehicle?.plate ?? null,
   });
@@ -125,6 +127,8 @@ export async function POST(req: Request) {
       email: residentProfile.email,
       timestamp,
       location: locationLabel,
+      locationLat: locationLat ?? null,
+      locationLng: locationLng ?? null,
       result,
       vehiclePlate: vehiclePlate ?? vehicle?.plate ?? null,
     });

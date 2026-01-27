@@ -13,6 +13,8 @@ type CycleRow = {
   end_date: string | null;
   status: string;
   created_at: string;
+  created_by: string | null;
+  profiles?: { name: string | null; email: string | null } | { name: string | null; email: string | null }[];
 };
 
 type Role = "SUPER" | "MAIN" | "SUB" | "GUARD" | "RESIDENT";
@@ -57,7 +59,7 @@ function CycleFormPanel({ enabled, role, complexId, onCreated }: CycleFormProps)
     event.preventDefault();
     setStatusText("");
     if (role === "SUPER" && !complexId) {
-      setStatusText("단지를 선택해야 등록할 수 있습니다.");
+      setStatusText("슈퍼관리자는 단지를 선택해야 합니다.");
       return;
     }
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -85,7 +87,7 @@ function CycleFormPanel({ enabled, role, complexId, onCreated }: CycleFormProps)
     setTitle("");
     setStartDate("");
     setEndDate("");
-    setStatusText("검침 주기가 등록되었습니다.");
+    setStatusText("검침 주기를 등록했습니다.");
     onCreated();
   };
 
@@ -94,7 +96,7 @@ function CycleFormPanel({ enabled, role, complexId, onCreated }: CycleFormProps)
       <h3 className="panel-title">검침 주기 등록</h3>
       <form onSubmit={createCycle} style={{ display: "grid", gap: "8px" }}>
         <label>
-          제목 입력
+          제목
           <input
             type="text"
             inputMode="text"
@@ -178,7 +180,7 @@ function CycleEditPanel({ enabled, cycle, onUpdated, onDeleted }: CycleEditProps
       setStatusText(data.error ?? "검침 주기 수정에 실패했습니다.");
       return;
     }
-    setStatusText("검침 주기가 수정되었습니다.");
+    setStatusText("검침 주기를 수정했습니다.");
     onUpdated();
   };
 
@@ -186,7 +188,7 @@ function CycleEditPanel({ enabled, cycle, onUpdated, onDeleted }: CycleEditProps
     if (!cycle) {
       return;
     }
-    const confirmed = window.confirm("해당 검침 주기를 삭제할까요?");
+    const confirmed = window.confirm("검침 주기를 삭제하시겠습니까?");
     if (!confirmed) {
       return;
     }
@@ -210,7 +212,7 @@ function CycleEditPanel({ enabled, cycle, onUpdated, onDeleted }: CycleEditProps
       setStatusText(data.error ?? "검침 주기 삭제에 실패했습니다.");
       return;
     }
-    setStatusText("검침 주기가 삭제되었습니다.");
+    setStatusText("검침 주기를 삭제했습니다.");
     onDeleted();
   };
 
@@ -218,7 +220,7 @@ function CycleEditPanel({ enabled, cycle, onUpdated, onDeleted }: CycleEditProps
     return (
       <div className="panel-card">
         <h3 className="panel-title">검침 주기 수정</h3>
-        <div className="muted">목록에서 항목을 선택하세요.</div>
+        <div className="muted">선택된 주기가 없습니다.</div>
       </div>
     );
   }
@@ -228,7 +230,7 @@ function CycleEditPanel({ enabled, cycle, onUpdated, onDeleted }: CycleEditProps
       <h3 className="panel-title">검침 주기 수정</h3>
       <form onSubmit={updateCycle} style={{ display: "grid", gap: "8px" }}>
         <label>
-          제목 수정
+          제목
           <input
             type="text"
             inputMode="text"
@@ -270,11 +272,12 @@ function CycleEditPanel({ enabled, cycle, onUpdated, onDeleted }: CycleEditProps
 
 export default function Page() {
   const { enabled } = useEditMode();
-  const { setContent } = useRightPanel();
+  const { setContent, setVisible } = useRightPanel();
   const [cycles, setCycles] = useState<CycleRow[]>([]);
   const [role, setRole] = useState<Role | null>(null);
   const [selectedComplexId, setSelectedComplexId] = useState("");
   const [selectedCycle, setSelectedCycle] = useState<CycleRow | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const loadProfile = useCallback(async () => {
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -319,10 +322,10 @@ export default function Page() {
   const deleteCycle = useCallback(
     async (cycle: CycleRow) => {
       if (!enabled) {
-        window.alert("수정 모드를 켜야 삭제할 수 있습니다.");
+        window.alert("편집 모드에서만 삭제할 수 있습니다.");
         return;
       }
-      const confirmed = window.confirm("해당 검침 주기를 삭제할까요?");
+      const confirmed = window.confirm("검침 주기를 삭제하시겠습니까?");
       if (!confirmed) {
         return;
       }
@@ -372,27 +375,62 @@ export default function Page() {
   }, [role]);
 
   useEffect(() => {
-    setContent(
-      <div style={{ display: "grid", gap: "12px" }}>
-        <CycleFormPanel enabled={enabled} role={role} complexId={selectedComplexId} onCreated={loadCycles} />
-        <CycleEditPanel
-          enabled={enabled}
-          cycle={selectedCycle}
-          onUpdated={loadCycles}
-          onDeleted={() => {
-            setSelectedCycle(null);
-            loadCycles();
-          }}
-        />
-      </div>
-    );
-    return () => setContent(null);
-  }, [enabled, role, selectedComplexId, selectedCycle, loadCycles, setContent]);
+    setVisible(false);
+    setContent(null);
+    return () => {
+      setVisible(true);
+      setContent(null);
+    };
+  }, [setContent, setVisible]);
 
   return (
     <MenuGuard roleGroup="sub" toggleKey="meter.cycles">
       <div>
         <h1 className="page-title">검침 주기</h1>
+        <div className="panel-card" style={{ margin: "12px 0 16px" }}>
+          <div style={{ display: "grid", gap: "8px" }}>
+            <div className="page-title" style={{ fontSize: "14px" }}>
+              필터
+            </div>
+            <div style={{ display: "grid", gap: "8px", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+              <label>
+                지역
+                <select>
+                  <option value="all">전체</option>
+                </select>
+              </label>
+              <label>
+                단지
+                <select value={selectedComplexId} onChange={(event) => setSelectedComplexId(event.target.value)}>
+                  <option value="">전체</option>
+                </select>
+              </label>
+              <label>
+                동
+                <select>
+                  <option value="all">전체</option>
+                </select>
+              </label>
+              <label>
+                입력자
+                <select>
+                  <option value="all">전체</option>
+                </select>
+              </label>
+              <label>
+                상태
+                <select>
+                  <option value="all">전체</option>
+                  <option value="done">완료</option>
+                  <option value="pending">미완료</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div style={{ margin: "12px 0 16px" }}>
+          <CycleFormPanel enabled={enabled} role={role} complexId={selectedComplexId} onCreated={loadCycles} />
+        </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -400,6 +438,7 @@ export default function Page() {
               <th align="left">시작 날짜</th>
               <th align="left">종료 날짜</th>
               <th align="left">상태</th>
+              <th align="left">등록자</th>
               <th align="left">수정</th>
               <th align="left">삭제</th>
             </tr>
@@ -412,7 +451,19 @@ export default function Page() {
                 <td>{cycle.end_date ?? "-"}</td>
                 <td>{cycleStatusLabel(cycle.status)}</td>
                 <td>
-                  <button type="button" onClick={() => setSelectedCycle(cycle)}>
+                  {(() => {
+                    const profile = Array.isArray(cycle.profiles) ? cycle.profiles[0] : cycle.profiles;
+                    return profile?.name || profile?.email || "-";
+                  })()}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCycle(cycle);
+                      setEditOpen(true);
+                    }}
+                  >
                     수정
                   </button>
                 </td>
@@ -425,6 +476,38 @@ export default function Page() {
             ))}
           </tbody>
         </table>
+        {editOpen && selectedCycle ? (
+          <div className="complexes-modal" role="dialog" aria-modal="true">
+            <div className="complexes-modal__card">
+              <div className="complexes-modal__header">
+                <div>И¤?Н1" НЬмИ,° Н^~Н </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditOpen(false);
+                    setSelectedCycle(null);
+                  }}
+                >
+                  ??
+                </button>
+              </div>
+              <CycleEditPanel
+                enabled={enabled}
+                cycle={selectedCycle}
+                onUpdated={() => {
+                  setEditOpen(false);
+                  setSelectedCycle(null);
+                  loadCycles();
+                }}
+                onDeleted={() => {
+                  setEditOpen(false);
+                  setSelectedCycle(null);
+                  loadCycles();
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
     </MenuGuard>
   );

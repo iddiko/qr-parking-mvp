@@ -1,4 +1,4 @@
-﻿export type MenuToggleGroup = Record<string, boolean>;
+export type MenuToggleGroup = Record<string, boolean>;
 
 export type MenuToggles = {
   main: MenuToggleGroup;

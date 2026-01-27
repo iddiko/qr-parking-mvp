@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabaseClient } from "@/lib/supabase/client";
@@ -79,7 +79,7 @@ export function MenuGuard({ roleGroup, toggleKey, children }: Props) {
   }, [roleGroup, toggleKey]);
 
   if (allowed === null) {
-    return <div className="muted">메뉴 설정을 불러오는 중입니다.</div>;
+    return <div className="muted">메뉴 권한을 확인하는 중입니다.</div>;
   }
   if (!allowed) {
     return <Forbidden />;

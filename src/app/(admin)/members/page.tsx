@@ -1,11 +1,12 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { supabaseClient } from "@/lib/supabase/client";
 import { useEditMode } from "@/lib/auth/editMode";
 import { MenuGuard } from "@/components/layout/MenuGuard";
+import { ProfileMenuContent } from "@/components/layout/ProfileMenu";
 
 type QrRow = {
   id: string;
@@ -17,6 +18,8 @@ type QrRow = {
 
 type VehicleRow = {
   id: string;
+  plate?: string | null;
+  vehicle_type?: string | null;
   qrs?: QrRow[];
 };
 
@@ -54,6 +57,14 @@ type UnitRow = {
 
 type ProfileRow = {
   avatar_url: string | null;
+};
+
+type ScanRow = {
+  id: string;
+  vehicle_plate?: string | null;
+  location_label?: string | null;
+  result?: string | null;
+  created_at?: string | null;
 };
 
 const roleLabel = (role?: string) => {
@@ -134,6 +145,16 @@ const ddayLabel = (expiresAt: string | null) => {
   return `D-${diffDays}`;
 };
 
+const vehicleTypeLabel = (value?: string | null) => {
+  if (value === "EV") {
+    return "전기";
+  }
+  if (value === "ICE") {
+    return "내연";
+  }
+  return value ?? "-";
+};
+
 const pickField = <T,>(value?: T | T[] | null) => {
   if (!value) {
     return null;
@@ -168,6 +189,10 @@ export default function Page() {
     complexId: "",
     buildingId: "",
     unitId: "",
+    hasVehicle: false,
+    vehicleId: "",
+    vehiclePlate: "",
+    vehicleType: "ICE",
   });
   const [status, setStatus] = useState("");
   const [profileRole, setProfileRole] = useState<string>("");
@@ -182,7 +207,10 @@ export default function Page() {
   const [qrThumbs, setQrThumbs] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [recentScans, setRecentScans] = useState<ScanRow[]>([]);
+  const [scanLoading, setScanLoading] = useState(false);
 
   const loadProfile = async () => {
     const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -283,7 +311,7 @@ export default function Page() {
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      setStatus(errorData.error ?? "회원 정보를 불러오지 못했습니다.");
+      setStatus(errorData.error ?? "데이터를 불러오지 못했습니다.");
       setMembers([]);
       setLoading(false);
       return;
@@ -298,331 +326,94 @@ export default function Page() {
     loadProfile();
   }, []);
 
-  useLayoutEffect(() => {
-    const applyClass = () => {
-      const nextIsMobile = window.matchMedia("(max-width: 768px)").matches;
-      setIsMobile(nextIsMobile);
-      document.body.classList.toggle("members-mobile", nextIsMobile);
-      document.documentElement.classList.toggle("members-mobile", nextIsMobile);
-    };
-    applyClass();
-    window.addEventListener("resize", applyClass);
-    return () => {
-      window.removeEventListener("resize", applyClass);
-      document.body.classList.remove("members-mobile");
-      document.documentElement.classList.remove("members-mobile");
-    };
-  }, []);
-
   useEffect(() => {
-    let active = true;
-    const loadAvatar = async () => {
-      const { data: sessionData } = await supabaseClient.auth.getSession();
-      const userId = sessionData.session?.user.id;
-      if (!userId) {
-        return;
-      }
-      const { data } = await supabaseClient.from("profiles").select("avatar_url").eq("id", userId).single();
-      if (!active) {
-        return;
-      }
-      const row = data as ProfileRow | null;
-      setAvatarUrl(row?.avatar_url ?? null);
-    };
-    loadAvatar();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const handler = () => {
-      void supabaseClient.auth.getSession().then(({ data }) => {
-        const userId = data.session?.user.id;
-        if (!userId) {
-          return;
-        }
-        supabaseClient
-          .from("profiles")
-          .select("avatar_url")
-          .eq("id", userId)
-          .single()
-          .then(({ data: row }) => {
-            setAvatarUrl((row as ProfileRow | null)?.avatar_url ?? null);
-          });
-      });
-    };
-    window.addEventListener("profileUpdated", handler);
-    return () => window.removeEventListener("profileUpdated", handler);
-  }, []);
-
-  useEffect(() => {
-    const handleSelection = (event: Event) => {
-      const detail = (event as CustomEvent<{ id?: string }>).detail;
-      if (profileRole === "SUPER") {
-        setFilterComplexId(detail?.id ?? "");
-        setShowAll((detail?.id ?? "") === "");
-      }
-    };
-    window.addEventListener("complexSelectionChanged", handleSelection as EventListener);
-    return () => window.removeEventListener("complexSelectionChanged", handleSelection as EventListener);
-  }, [profileRole]);
-
-  useEffect(() => {
-    loadBuildings(filterComplexId);
-    if (profileRole !== "SUB") {
-      setFilterBuildingId("");
+    if (filterComplexId) {
+      loadBuildings(filterComplexId);
+    } else {
+      setBuildings([]);
     }
-  }, [filterComplexId, profileRole]);
+    setFilterBuildingId("");
+  }, [filterComplexId]);
+
+  useEffect(() => {
+    if (filterBuildingId) {
+      loadUnits(filterBuildingId);
+    } else {
+      setUnits([]);
+    }
+  }, [filterBuildingId]);
 
   useEffect(() => {
     loadMembers();
   }, [filterComplexId, filterBuildingId, filterRole, showAll]);
 
-  useEffect(() => {
-    if (editingId) {
-      loadUnits(form.buildingId);
-    }
-  }, [editingId, form.buildingId]);
-
   const rows = useMemo(() => {
-    return members.map((member) => {
-      const qrs = member.vehicles?.flatMap((vehicle) => vehicle.qrs ?? []) ?? [];
-      const latestQr = qrs.sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-      const complex = pickField(member.complexes);
-      const building = pickField(member.buildings);
-      const unit = pickField(member.units);
-      const phones = member.profile_phones ?? [];
-      const primaryPhone =
-        phones.find((item) => item.is_primary)?.phone ?? phones[0]?.phone ?? member.phone ?? "-";
-      return {
-        member,
-        complexName: complex?.name ?? "-",
-        buildingLabel: building ? `${building.code}동` : "-",
-        unitLabel: unit?.code ? `${unit.code}호` : "-",
-        displayPhone: primaryPhone,
-        hasQr: qrs.length > 0,
-        qrCount: qrs.length,
-        qrIssuedAt: latestQr?.created_at ?? "",
-        qrExpiresAt: latestQr?.expires_at ?? null,
-        qrStatus: latestQr?.status ?? "-",
-        qrCode: latestQr?.code ?? "",
-        nameLabel: member.name ?? "-",
-      };
-    });
-  }, [members]);
-
-  const mobileRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return rows;
-    }
-    return rows.filter((row) => {
-      const terms = [
-        row.member.email,
-        row.nameLabel,
-        row.displayPhone,
-        row.complexName,
-        row.buildingLabel,
-        row.unitLabel,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return terms.includes(query);
-    });
-  }, [rows, searchQuery]);
+    return members
+      .map((member) => {
+        const complexName =
+          pickField(member.complexes)?.name ??
+          complexes.find((item) => item.id === member.complex_id)?.name ??
+          "-";
+        const building = pickField(member.buildings);
+        const buildingLabel = building
+          ? `${building.code}동${building.name ? ` ${building.name}` : ""}`.trim()
+          : "-";
+        const unit = pickField(member.units);
+        const unitLabel = unit?.code ? `${unit.code}호` : "-";
+        const displayPhone =
+          member.profile_phones?.find((phone) => phone.is_primary)?.phone ??
+          member.phone ??
+          "-";
+        const vehicles = member.vehicles ?? [];
+        const qrs = vehicles.flatMap((vehicle) => vehicle.qrs ?? []);
+        const latestQr = qrs
+          .slice()
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+        const qrStatus = latestQr?.status ?? "";
+        const nameLabel = member.name ?? member.email ?? "-";
+        return {
+          member,
+          complexName,
+          buildingLabel,
+          unitLabel,
+          displayPhone,
+          qrStatus,
+          nameLabel,
+        };
+      })
+      .filter((row) => {
+        if (!query) {
+          return true;
+        }
+        const haystack = [
+          row.member.name,
+          row.member.email,
+          row.displayPhone,
+          row.complexName,
+          row.buildingLabel,
+          row.unitLabel,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(query);
+      });
+  }, [members, complexes, searchQuery]);
 
-  const mobileActiveCount = useMemo(() => {
-    return rows.filter((row) => row.qrStatus === "ACTIVE").length;
-  }, [rows]);
-
-  useEffect(() => {
-    const loadThumbs = async () => {
-      const nextThumbs: Record<string, string> = {};
-      await Promise.all(
-        rows.map(async (row) => {
-          if (!row.qrCode) {
-            return;
-          }
-          try {
-            nextThumbs[row.member.id] = await QRCode.toDataURL(buildQrUrl(row.qrCode));
-          } catch {
-            nextThumbs[row.member.id] = "";
-          }
-        })
-      );
-      setQrThumbs(nextThumbs);
-    };
-    if (rows.length > 0 && typeof window !== "undefined") {
-      void loadThumbs();
-    } else {
-      setQrThumbs({});
-    }
-  }, [rows]);
-
+  const mobileRows = rows;
+  const mobileActiveCount = rows.filter((row) => row.qrStatus === "ACTIVE").length;
   const selectedRow = rows.find((row) => row.member.id === selectedMemberId) ?? null;
-  const selectedVehiclePlate = useMemo(() => {
-    if (!selectedRow) {
-      return "-";
-    }
-    const vehicle = (selectedRow.member as any)?.vehicles?.[0] ?? null;
-    return vehicle?.plate_number ?? vehicle?.plate ?? "-";
-  }, [selectedRow]);
-  const canEdit = selectedRow
-    ? selectedRow.member.role === "RESIDENT"
-      ? selectedRow.qrStatus === "ACTIVE"
-      : true
-    : false;
   const isMobileDetail = isMobile && showModal && !!selectedRow;
-  const detailBody = selectedRow ? (
-    <>
-      {status ? <div className="members-modal__status">{status}</div> : null}
-      <div className="members-modal__section">
-        <div className="members-modal__section-title">기본 정보</div>
-        <div className="members-modal__info-row">
-          <span className="members-modal__info-label">이메일</span>
-          {editingId ? (
-            <input value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} />
-          ) : (
-            <span className="members-modal__info-value">{selectedRow.member.email}</span>
-          )}
-        </div>
-        <div className="members-modal__info-row">
-          <span className="members-modal__info-label">전화</span>
-          {editingId ? (
-            <input value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} />
-          ) : (
-            <span className="members-modal__info-value">{selectedRow.displayPhone}</span>
-          )}
-        </div>
-        <div className="members-modal__info-row">
-          <span className="members-modal__info-label">단지</span>
-          {editingId ? (
-            <select value={form.complexId} onChange={(event) => setForm((prev) => ({ ...prev, complexId: event.target.value }))}>
-              <option value="">-</option>
-              {complexes.map((complex) => (
-                <option key={complex.id} value={complex.id}>
-                  {complex.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="members-modal__info-value">{selectedRow.complexName}</span>
-          )}
-        </div>
-        <div className="members-modal__info-row">
-          <span className="members-modal__info-label">동/호수</span>
-          {editingId ? (
-            <div className="members-modal__info-split">
-              <select value={form.buildingId} onChange={(event) => setForm((prev) => ({ ...prev, buildingId: event.target.value }))}>
-                <option value="">-</option>
-                {buildings.map((building) => (
-                  <option key={building.id} value={building.id}>
-                    {building.code}동
-                  </option>
-                ))}
-              </select>
-              <select value={form.unitId} onChange={(event) => setForm((prev) => ({ ...prev, unitId: event.target.value }))}>
-                <option value="">-</option>
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.code}호
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <span className="members-modal__info-value">
-              {selectedRow.buildingLabel} {selectedRow.unitLabel}
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="members-modal__section members-modal__section--qr">
-        <div className="members-modal__section-title">QR 정보</div>
-        <div className="members-modal__qr-content">
-          <div className="members-modal__qr-list">
-            <div className="members-modal__kv">
-              <span className="members-modal__kv-label">발행수</span>
-              <span className="members-modal__kv-value">{selectedRow.qrCount}개</span>
-            </div>
-            <div className="members-modal__kv">
-              <span className="members-modal__kv-label">발행일</span>
-              <span className="members-modal__kv-value">{formatDateTime(selectedRow.qrIssuedAt)}</span>
-            </div>
-            <div className="members-modal__kv">
-              <span className="members-modal__kv-label">만료일</span>
-              <span className="members-modal__kv-value">{ddayLabel(selectedRow.qrExpiresAt)}</span>
-            </div>
-            <div className="members-modal__kv">
-              <span className="members-modal__kv-label">QR 상태</span>
-              <span className="members-modal__kv-value">{qrStatusLabel(selectedRow.qrStatus)}</span>
-            </div>
-          </div>
-          <div className="members-modal__qr-thumb">
-            {qrThumbs[selectedRow.member.id] ? (
-              <>
-                <img src={qrThumbs[selectedRow.member.id]} alt="QR" />
-                <div className="members-modal__qr-plate">{selectedVehiclePlate}</div>
-              </>
-            ) : (
-              <div className="members-modal__qr-empty">QR 정보 없음</div>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="members-modal__section">
-        <div className="members-modal__section-title">차량 정보</div>
-        <div className="members-modal__vehicle-row">
-          <div className="members-modal__vehicle-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M4 14l2-5a2 2 0 0 1 2-1h8a2 2 0 0 1 2 1l2 5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <rect x="3" y="14" width="18" height="5" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-              <circle cx="7" cy="19" r="1" fill="currentColor" />
-              <circle cx="17" cy="19" r="1" fill="currentColor" />
-            </svg>
-          </div>
-          <div className="members-modal__vehicle-text">
-            <span className="members-modal__vehicle-label">차량 정보</span>
-            <span className="members-modal__vehicle-value">{selectedVehiclePlate}</span>
-          </div>
-          <svg className="members-modal__vehicle-chevron" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        </div>
-      </div>
-      <div className="members-modal__section">
-        <div className="members-modal__section-title">최근 스캔</div>
-        <div className="members-modal__empty">최근 스캔 기록이 없습니다.</div>
-      </div>
-      <div className="members-modal__actions">
-        <button type="button" className="members-modal__action members-modal__action--primary" onClick={() => openModal(selectedRow.member, true)} disabled={!enabled || !canEdit}>
-          수정
-        </button>
-        <button type="button" className="members-modal__action members-modal__action--warning" onClick={() => remove(selectedRow.member.id)} disabled={!enabled}>
-          차단
-        </button>
-        <button type="button" className="members-modal__action members-modal__action--danger" onClick={() => remove(selectedRow.member.id)} disabled={!enabled}>
-          삭제
-        </button>
-      </div>
-      <div className="members-modal__note">편집 모드에서만 관리자 액션 기능입니다.</div>
-    </>
-  ) : null;
+
 
   const openModal = (member: MemberRow, shouldEdit = false) => {
     const qrs = member.vehicles?.flatMap((vehicle) => vehicle.qrs ?? []) ?? [];
     const latestQr = qrs.sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    const vehicle = member.vehicles?.[0] ?? null;
+    const plate = vehicle?.plate ?? "";
     setSelectedMemberId(member.id);
-    setShowModal(true);
+    setShowModal(isMobile || shouldEdit);
     setEditingId(shouldEdit ? member.id : null);
     setForm({
       name: member.name ?? "",
@@ -634,8 +425,29 @@ export default function Page() {
       complexId: member.complex_id ?? "",
       buildingId: member.building_id ?? "",
       unitId: member.unit_id ?? "",
+      hasVehicle: !!vehicle,
+      vehicleId: vehicle?.id ?? "",
+      vehiclePlate: plate,
+      vehicleType: vehicle?.vehicle_type ?? "ICE",
     });
     setStatus("");
+    setRecentScans([]);
+    if (plate) {
+      setScanLoading(true);
+      void (async () => {
+        try {
+          const { data } = await supabaseClient
+            .from("scans")
+            .select("id, vehicle_plate, location_label, result, created_at")
+            .eq("vehicle_plate", plate)
+            .order("created_at", { ascending: false })
+            .limit(5);
+          setRecentScans((data as ScanRow[]) ?? []);
+        } finally {
+          setScanLoading(false);
+        }
+      })();
+    }
   };
 
   const closeModal = () => {
@@ -643,6 +455,8 @@ export default function Page() {
     setSelectedMemberId(null);
     setShowModal(false);
     setStatus("");
+    setRecentScans([]);
+    setScanLoading(false);
   };
 
   const save = async () => {
@@ -657,7 +471,7 @@ export default function Page() {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
-        "x-edit-mode": enabled ? "true" : "false",
+        "x-edit-mode": enabled ? "on" : "off",
       },
       body: JSON.stringify({
         id: editingId,
@@ -670,20 +484,24 @@ export default function Page() {
         complex_id: form.complexId || null,
         building_id: form.buildingId || null,
         unit_id: form.unitId || null,
+        has_vehicle: form.hasVehicle,
+        vehicle_id: form.vehicleId || null,
+        vehicle_plate: form.vehiclePlate || null,
+        vehicle_type: form.vehicleType || null,
       }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "회원 정보를 저장하지 못했습니다.");
+      setStatus(data.error ?? "데이터를 불러오지 못했습니다.");
       return;
     }
-    setStatus("회원 정보가 저장되었습니다.");
+    setStatus("저장되었습니다.");
     setEditingId(null);
     loadMembers();
   };
 
   const remove = async (memberId: string) => {
-    if (!confirm("정말 삭제하시겠습니까?")) {
+    if (!confirm("삭제하시겠습니까?")) {
       return;
     }
     setStatus("");
@@ -694,169 +512,245 @@ export default function Page() {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
-        "x-edit-mode": enabled ? "true" : "false",
+        "x-edit-mode": enabled ? "on" : "off",
       },
       body: JSON.stringify({ id: memberId }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data.error ?? "회원 정보를 삭제하지 못했습니다.");
+      setStatus(data.error ?? "데이터를 불러오지 못했습니다.");
       return;
     }
-    setStatus("회원 정보가 삭제되었습니다.");
+    setStatus("삭제되었습니다.");
     loadMembers();
   };
+
+  const detailBody = selectedRow ? (
+    <div className="members-detail">
+      <div className="members-detail__section">
+        <label>
+          이름
+          <input
+            value={form.name}
+            onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+            disabled={!editingId}
+          />
+        </label>
+        <label>
+          이메일
+          <input
+            value={form.email}
+            onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+            disabled={!editingId}
+          />
+        </label>
+        <label>
+          연락처
+          <input
+            value={form.phone}
+            onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+            disabled={!editingId}
+          />
+        </label>
+        <label>
+          역할
+          <select
+            value={form.role}
+            onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value }))}
+            disabled={!editingId}
+          >
+            <option value="SUPER">슈퍼관리자</option>
+            <option value="MAIN">단지관리자</option>
+            <option value="SUB">동관리자</option>
+            <option value="GUARD">경비</option>
+            <option value="RESIDENT">입주민</option>
+          </select>
+        </label>
+        <label>
+          차량 번호판
+          <input
+            value={form.vehiclePlate}
+            onChange={(event) => setForm((prev) => ({ ...prev, vehiclePlate: event.target.value }))}
+            disabled={!editingId}
+          />
+        </label>
+      </div>
+      <div className="members-detail__actions">
+        {editingId ? (
+          <button type="button" onClick={save} disabled={!enabled}>
+            저장
+          </button>
+        ) : null}
+        <button type="button" onClick={closeModal}>
+          닫기
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <MenuGuard roleGroup="sub" toggleKey="members">
       <div>
-        <div className="members-desktop">
-          <h1 className="page-title">회원관리</h1>
-          <p className="muted">모든 계정을 조회하고 역할/정보/QR 상태를 관리합니다.</p>
+        {!isMobile ? (
+          <div className="members-desktop">
+            <h1 className="page-title">회원 관리</h1>
+            <p className="muted">초대/승인/QR 정보를 관리합니다.</p>
 
-          <div className="panel-card members-filters">
-            <div className="panel-title">회원 필터</div>
-            <label>
-              단지 필터
-              <select
-                value={filterComplexId}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setFilterComplexId(next);
-                  if (profileRole === "SUPER") {
-                    setShowAll(next === "");
-                  }
-                }}
-                disabled={profileRole === "MAIN" || profileRole === "SUB"}
-              >
-                <option value="">전체</option>
-                {complexes.map((complex) => (
-                  <option key={complex.id} value={complex.id}>
-                    {complex.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              동 필터
-              <select
-                value={filterBuildingId}
-                onChange={(event) => setFilterBuildingId(event.target.value)}
-                disabled={profileRole === "SUB"}
-              >
-                <option value="">전체</option>
-                {buildings.map((building) => (
-                  <option key={building.id} value={building.id}>
-                    {building.code}동 ({building.name})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              역할 필터
-              <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
-                <option value="">전체</option>
-                <option value="SUPER">슈퍼관리자</option>
-                <option value="MAIN">메인관리자</option>
-                <option value="SUB">서브관리자</option>
-                <option value="GUARD">경비</option>
-                <option value="RESIDENT">입주민</option>
-              </select>
-            </label>
-            {profileRole === "SUPER" ? (
-              <label className="filter-inline">
-                <input type="checkbox" checked={showAll} onChange={(event) => setShowAll(event.target.checked)} />
-                전체 보기
-              </label>
-            ) : null}
+            <div className="panel-card members-filters">
+              <div className="panel-title">필터</div>
+              <div className="members-filter-row">
+                <label>
+                  단지 필터
+                  <select
+                    value={filterComplexId}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setFilterComplexId(next);
+                      if (profileRole === "SUPER") {
+                        setShowAll(next === "");
+                      }
+                    }}
+                    disabled={profileRole === "MAIN" || profileRole === "SUB"}
+                  >
+                    <option value="">전체</option>
+                    {complexes.map((complex) => (
+                      <option key={complex.id} value={complex.id}>
+                        {complex.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  동 필터
+                  <select
+                    value={filterBuildingId}
+                    onChange={(event) => setFilterBuildingId(event.target.value)}
+                    disabled={profileRole === "SUB"}
+                  >
+                    <option value="">전체</option>
+                    {buildings.map((building) => (
+                      <option key={building.id} value={building.id}>
+                        {building.code}동 ({building.name})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  역할
+                  <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
+                    <option value="">전체</option>
+                    <option value="SUPER">슈퍼관리자</option>
+                    <option value="MAIN">메인관리자</option>
+                    <option value="SUB">서브관리자</option>
+                    <option value="GUARD">경비</option>
+                    <option value="RESIDENT">입주민</option>
+                  </select>
+                </label>
+                {profileRole === "SUPER" ? (
+                  <label className="filter-inline">
+                    <input type="checkbox" checked={showAll} onChange={(event) => setShowAll(event.target.checked)} />
+                    전체 보기
+                  </label>
+                ) : null}
+              </div>
+
+            </div>
+
+            {status ? <div className="muted">회원이 없습니다.</div> : null}
+            {!loading && members.length === 0 ? <div className="muted">회원이 없습니다.</div> : null}
+
+            <table className="members-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
+              <thead>
+                <tr>
+                  <th align="left">역할</th>
+                  <th align="left">이름</th>
+                  <th align="left">전화</th>
+                  <th align="left">이메일</th>
+                  <th align="left">단지</th>
+                  <th align="left">동</th>
+                  <th align="left">호수</th>
+                  <th align="left">수정</th>
+                  <th align="left">삭제</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ member, qrStatus, complexName, buildingLabel, unitLabel, displayPhone }) => {
+                  const canEdit = member.role === "RESIDENT" ? qrStatus === "ACTIVE" : true;
+                  return (
+                    <tr key={member.id} onClick={() => openModal(member)} style={{ cursor: "pointer" }}>
+                      <td className="members-role">
+                        <span className={`role-badge ${roleClassName(member.role)}`}>{roleLabel(member.role)}</span>
+                      </td>
+                      <td>{member.name ?? "-"}</td>
+                      <td>{displayPhone}</td>
+                      <td className="members-email">{member.email}</td>
+                      <td>{complexName}</td>
+                      <td>{buildingLabel}</td>
+                      <td>{unitLabel}</td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openModal(member, true);
+                          }}
+                          disabled={!canEdit}
+                        >
+                          수정
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            remove(member.id);
+                          }}
+                          disabled={!enabled}
+                        >
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
+        ) : null}
 
-          {status ? <div className="muted">{status}</div> : null}
-          {!loading && members.length === 0 ? <div className="muted">조회된 회원이 없습니다.</div> : null}
+        {!isMobile && showModal && selectedRow ? (
+          <>
+            <div className="members-modal-overlay" onClick={closeModal} />
+            <div className="members-modal" role="dialog" aria-modal="true">
+              <div className="members-modal__header">
+                <h2 className="members-modal__title">회원 상세</h2>
+                <button type="button" className="members-modal__close" onClick={closeModal}>닫기</button>
+              </div>
+              <div className="members-modal__body">{detailBody}</div>
+            </div>
+          </>
+        ) : null}
 
-          <table className="members-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
-            <thead>
-              <tr>
-                <th align="left">레벨</th>
-                <th align="left">이름</th>
-                <th align="left">전화</th>
-                <th align="left">이메일</th>
-                <th align="left">단지</th>
-                <th align="left">동</th>
-                <th align="left">호수</th>
-                <th align="left">수정</th>
-                <th align="left">삭제</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ member, qrStatus, complexName, buildingLabel, unitLabel, displayPhone }) => {
-                const canEdit = member.role === "RESIDENT" ? qrStatus === "ACTIVE" : true;
-                return (
-                  <tr key={member.id} onClick={() => openModal(member)} style={{ cursor: "pointer" }}>
-                    <td className="members-role">
-                      <span className={`role-badge ${roleClassName(member.role)}`}>{roleLabel(member.role)}</span>
-                    </td>
-                    <td>{member.name ?? "-"}</td>
-                    <td>{displayPhone}</td>
-                    <td className="members-email">{member.email}</td>
-                    <td>{complexName}</td>
-                    <td>{buildingLabel}</td>
-                    <td>{unitLabel}</td>
-                    <td>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openModal(member, true);
-                        }}
-                        disabled={!canEdit}
-                      >
-                        수정
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          remove(member.id);
-                        }}
-                        disabled={!enabled}
-                      >
-                        삭제
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="members-mobile">
+        {isMobile ? (
+          <div className="members-mobile">
           <div className="mobile-appbar">
             <button
               type="button"
               className="mobile-appbar__back"
-              onClick={() => (isMobileDetail ? closeModal() : router.back())}
+              onClick={() => router.back()}
               aria-label="뒤로가기"
             >
               <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
                 <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
               </svg>
             </button>
-            <div className="mobile-appbar__title">{isMobileDetail ? "회원 상세" : "QR Parking MVP"}</div>
-            {isMobileDetail ? (
-              <button type="button" className="mobile-appbar__close" onClick={closeModal} aria-label="닫기">
-                <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6l-12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-            ) : (
+            <div className="mobile-appbar__title">QR Parking MVP</div>
+            <div className="profile-menu">
               <button
                 type="button"
                 className="mobile-appbar__profile"
-                onClick={() => router.push("/admin/mypage")}
+                onClick={() => setProfileMenuOpen((prev) => !prev)}
                 aria-label="마이페이지"
               >
                 {avatarUrl ? (
@@ -869,33 +763,16 @@ export default function Page() {
                   </svg>
                 )}
               </button>
-            )}
+              {profileMenuOpen ? (
+                <div className="profile-menu__panel">
+                  <ProfileMenuContent variant="popover" onNavigate={() => setProfileMenuOpen(false)} />
+                </div>
+              ) : null}
+            </div>
           </div>
-
           <div className="members-filterbar">
             <div className="members-filterbar__title">
-              <span>회원관리</span>
-              <div className="members-filterbar__select members-filterbar__select--inline">
-                <select
-                  value={filterComplexId}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setFilterComplexId(next);
-                    if (profileRole === "SUPER") {
-                      setShowAll(next === "");
-                    }
-                  }}
-                  disabled={profileRole === "MAIN" || profileRole === "SUB"}
-                >
-                  <option value="">전체 단지</option>
-                  {complexes.map((complex) => (
-                    <option key={complex.id} value={complex.id}>
-                      {complex.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="members-filterbar__caret" aria-hidden="true" />
-              </div>
+              <span>설정</span>
             </div>
             <div className="members-filterbar__row">
               <div className="members-search">
@@ -909,72 +786,9 @@ export default function Page() {
                   placeholder="이메일, 전화번호..."
                 />
               </div>
-              <div className="members-filterbar__select">
-                <select
-                  value={filterComplexId}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setFilterComplexId(next);
-                    if (profileRole === "SUPER") {
-                      setShowAll(next === "");
-                    }
-                  }}
-                  disabled={profileRole === "MAIN" || profileRole === "SUB"}
-                >
-                  <option value="">전체 단지</option>
-                  {complexes.map((complex) => (
-                    <option key={complex.id} value={complex.id}>
-                      {complex.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="members-filterbar__caret" aria-hidden="true" />
-              </div>
-            </div>
-            <div className="members-filterbar__controls">
-              <div className="members-filterbar__select">
-                <select
-                  value={filterComplexId}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setFilterComplexId(next);
-                    if (profileRole === "SUPER") {
-                      setShowAll(next === "");
-                    }
-                  }}
-                  disabled={profileRole === "MAIN" || profileRole === "SUB"}
-                >
-                  <option value="">전체 지역</option>
-                  {complexes.map((complex) => (
-                    <option key={complex.id} value={complex.id}>
-                      {complex.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="members-filterbar__caret" aria-hidden="true" />
-              </div>
-              <div className="members-filterbar__select">
-                <select value={filterBuildingId} onChange={(event) => setFilterBuildingId(event.target.value)}>
-                  <option value="">전체 동</option>
-                  {buildings.map((building) => (
-                    <option key={building.id} value={building.id}>
-                      {building.code}동
-                    </option>
-                  ))}
-                </select>
-                <span className="members-filterbar__caret" aria-hidden="true" />
-              </div>
-              <div className="members-filterbar__select">
-                <select value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
-                  <option value="">모든 역할</option>
-                  <option value="SUPER">슈퍼관리자</option>
-                  <option value="MAIN">메인관리자</option>
-                  <option value="SUB">서브관리자</option>
-                  <option value="GUARD">경비</option>
-                  <option value="RESIDENT">입주민</option>
-                </select>
-                <span className="members-filterbar__caret" aria-hidden="true" />
-              </div>
+              <button type="button" className="members-search-button">
+                검색
+              </button>
             </div>
           </div>
 
@@ -987,7 +801,7 @@ export default function Page() {
                   전체 {rows.length}명 / 활성 {mobileActiveCount}명
                 </div>
                 {mobileRows.length === 0 ? (
-                  <div className="muted">조회된 회원이 없습니다.</div>
+                  <div className="muted">회원이 없습니다.</div>
                 ) : (
                   mobileRows.map((row) => {
                     const statusLabel = qrStatusLabel(row.qrStatus);
@@ -1071,67 +885,7 @@ export default function Page() {
               <span>설정</span>
             </button>
           </div>
-        </div>
-
-        {showModal && selectedRow && !isMobile ? (
-          <>
-            <button className="members-modal-overlay" type="button" onClick={closeModal} aria-label="닫기" />
-            <div className="members-modal" role="dialog" aria-modal="true">
-              <div className="members-modal__appbar">
-                <button type="button" className="members-modal__nav" onClick={closeModal} aria-label="뒤로가기">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M15 6l-6 6 6 6"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-                <div className="members-modal__appbar-title">회원 상세</div>
-                <button
-                  type="button"
-                  className="members-modal__nav members-modal__nav--close"
-                  onClick={closeModal}
-                  aria-label="닫기"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M6 6l12 12M18 6l-12 12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div className="members-modal__profile">
-                <div className="members-modal__avatar">
-                  <span>{selectedRow.member.name?.slice(0, 1) ?? selectedRow.member.email.slice(0, 1)}</span>
-                </div>
-                <div className="members-modal__profile-info">
-                  <div className="members-modal__profile-name">
-                    <span>{selectedRow.member.name ?? "-"}</span>
-                    <span className={`role-badge ${roleClassName(selectedRow.member.role)}`}>
-                      {roleLabel(selectedRow.member.role)}
-                    </span>
-                  </div>
-                  <div className="members-modal__profile-badges">
-                    <span className="members-modal__chip members-modal__chip--info">
-                      {selectedRow.hasQr ? "보유" : "무현"}
-                    </span>
-                    <span className="members-modal__chip members-modal__chip--success">
-                      {selectedRow.hasQr ? qrStatusLabel(selectedRow.qrStatus) : "비활성"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="members-modal__body">{detailBody}</div>
-            </div>
-          </>
+          </div>
         ) : null}
       </div>
     </MenuGuard>

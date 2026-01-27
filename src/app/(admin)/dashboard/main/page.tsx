@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseClient } from "@/lib/supabase/client";
 import { MenuGuard } from "@/components/layout/MenuGuard";
+import { useRightPanel } from "@/components/layout/RightPanelContext";
 
 type ProfileRow = {
   id: string;
@@ -51,6 +52,7 @@ const roleLabel: Record<ProfileRow["role"], string> = {
 };
 
 export default function Page() {
+  const { setContent, setVisible } = useRightPanel();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [complex, setComplex] = useState<ComplexRow | null>(null);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
@@ -59,6 +61,14 @@ export default function Page() {
   const [qrs, setQrs] = useState<QrRow[]>([]);
   const [scans, setScans] = useState<ScanRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setVisible(false);
+    setContent(null);
+    return () => {
+      setVisible(true);
+    };
+  }, [setContent, setVisible]);
 
   const loadProfile = async () => {
     const { data: sessionData } = await supabaseClient.auth.getSession();

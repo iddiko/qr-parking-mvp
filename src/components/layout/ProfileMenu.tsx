@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -477,11 +477,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     return "-";
   })();
 
-  const qrHint = qrDataUrl
-    ? null
-    : profile?.role === "RESIDENT"
-    ? "QR 이미지가 없습니다."
-    : "QR 정보가 없습니다.";
+  const qrHint = qrDataUrl ? null : "QR 미등록 사용자입니다.";
 
   const onLogout = async () => {
     await supabaseClient.auth.signOut();
@@ -512,7 +508,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
     );
   };
 
-  const roleLabel = profile ? roleTitle[profile.role] : "역할 없음";
+  const roleLabel = profile ? roleTitle[profile.role] : "알 수 없음";
 
   return (
     <div className={variant === "popover" ? "profile-menu-content" : ""}>
@@ -551,7 +547,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
         <div className="profile-menu__section">
           <div className="profile-menu__heading">내 정보</div>
           <div className="profile-menu__row">
-            <span className="profile-menu__label">내 레벨</span>
+            <span className="profile-menu__label">내 역할</span>
             <span>{roleLabel}</span>
           </div>
           <div className="profile-menu__row">
@@ -571,7 +567,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
             {qrHint ? <div className="muted">{qrHint}</div> : null}
           </div>
           <Link className="profile-menu__edit" href={mypageHref} onClick={onNavigate}>
-            내 정보 수정
+            마이페이지
           </Link>
           <Link className="profile-menu__edit" href={notificationsHref} onClick={onNavigate}>
             <span className="profile-menu__icon" aria-hidden>
@@ -587,7 +583,7 @@ export function ProfileMenuContent({ variant = "sidebar", onNavigate }: ProfileM
 
       {variant === "sidebar" ? (
         items.length === 0 ? (
-          <div className="muted">표시할 메뉴가 없습니다.</div>
+          <div className="muted">메뉴 설정이 없습니다.</div>
         ) : (
           <div className="menu-list">
             {items.map((item) => (

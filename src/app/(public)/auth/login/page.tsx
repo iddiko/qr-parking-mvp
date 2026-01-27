@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -72,7 +72,7 @@ export default function LoginPage() {
       password,
     });
     if (error) {
-      setStatus("로그인에 실패했습니다. 다시 확인해주세요.");
+      setStatus("???? ??????. ?? ??????.");
       setIsSubmitting(false);
       return;
     }
@@ -95,10 +95,10 @@ export default function LoginPage() {
           <div className="landing-orb landing-orb--b" />
           <div className="landing-orb landing-orb--c" />
           <div className="landing-card landing-card--hero">
-            <div className="landing-title">QR 주차 MVP</div>
-            <div className="landing-sub">초대 기반으로 차량 여부를 확인하고, 스캔 알림을 즉시 전달합니다.</div>
+            <div className="landing-title">QR ?? MVP</div>
+            <div className="landing-sub">?? ???? ?? ??? ????, ?? ??? ?? ?????.</div>
             <div className="landing-pulse">
-              로그인 준비 중<span className="landing-dot">.</span>
+              ??? ?? ?<span className="landing-dot">.</span>
               <span className="landing-dot">.</span>
               <span className="landing-dot">.</span>
             </div>
@@ -116,15 +116,15 @@ export default function LoginPage() {
       </header>
       <main className="login-body login-wrap">
         <form onSubmit={onSubmit} className="login-card">
-          <div className="login-title">로그인</div>
-          <div className="login-logo" aria-label="회사 로고 영역">
-            {logoUrl ? <img className="login-logo__img" src={logoUrl} alt="회사 로고" /> : null}
+          <div className="login-title">???</div>
+          <div className="login-logo" aria-label="?? ?? ??">
+            {logoUrl ? <img className="login-logo__img" src={logoUrl} alt="?? ??" /> : null}
           </div>
           <div className="login-hint">
-            초대받은 계정으로 로그인하세요. 권한에 따라 경비/입주민/관리자 화면이 자동으로 연결됩니다.
+            ???? ???? ??????. ??? ?? ??/???/??? ??? ???? ?????.
           </div>
           <label className="login-field">
-            이메일
+            ???
             <input
               className="login-input"
               type="email"
@@ -135,20 +135,20 @@ export default function LoginPage() {
             />
           </label>
           <label className="login-field" style={{ position: "relative" }}>
-            비밀번호
+            ????
             <input
               className="login-input"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="비밀번호"
+              placeholder="????"
               required
             />
           <button
             className="eye-button"
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
-            aria-label="비밀번호 보기"
+            aria-label="???? ??"
           >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <path d="M1.5 12s4-7.5 10.5-7.5S22.5 12 22.5 12s-4 7.5-10.5 7.5S1.5 12 1.5 12z" />
@@ -158,11 +158,11 @@ export default function LoginPage() {
           </label>
           {status ? <div className="muted">{status}</div> : null}
           <button className="login-button" type="submit" disabled={isSubmitting || isRedirecting}>
-            {isSubmitting || isRedirecting ? "로그인 중..." : "로그인"}
+            {isSubmitting || isRedirecting ? "??? ?..." : "???"}
           </button>
         </form>
       </main>
-      <footer className="login-footer">회원가입은 관리자가 보낸 링크 URL을 클릭하세요.</footer>
+      <footer className="login-footer">????? ???? ?? ?? URL? ?????.</footer>
     </div>
   );
 }

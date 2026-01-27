@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   });
   if (profile!.role !== "SUPER") {
     if (!profile!.complex_id) {
-      return NextResponse.json({ error: "소속 단지가 없습니다." }, { status: 400 });
+      return NextResponse.json({ error: "단지 정보가 없는 계정입니다." }, { status: 400 });
     }
     query = query.eq("id", profile!.complex_id);
   }
@@ -102,6 +102,38 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
+  const action = body.action as string | undefined;
+
+  if (action === "update") {
+    const id = body.id as string;
+    const name = body.name as string;
+    if (!id || !name) {
+      return NextResponse.json({ error: "단지 정보를 확인해주세요." }, { status: 400 });
+    }
+    const { data, error } = await supabaseAdmin
+      .from("complexes")
+      .update({ name })
+      .eq("id", id)
+      .select("id, name, created_at")
+      .single();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ complex: data });
+  }
+
+  if (action === "delete") {
+    const id = body.id as string;
+    if (!id) {
+      return NextResponse.json({ error: "단지 정보를 확인해주세요." }, { status: 400 });
+    }
+    const { error } = await supabaseAdmin.from("complexes").delete().eq("id", id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const name = body.name as string;
   if (!name) {
     return NextResponse.json({ error: "단지명을 입력해주세요." }, { status: 400 });

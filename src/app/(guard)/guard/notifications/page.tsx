@@ -1,4 +1,4 @@
-﻿import { MenuGuard } from "@/components/layout/MenuGuard";
+import { MenuGuard } from "@/components/layout/MenuGuard";
 import { NotificationsList } from "@/components/layout/NotificationsList";
 
 export default function Page() {

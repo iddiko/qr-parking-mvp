@@ -10,7 +10,7 @@ type EmailResult = { ok: boolean; error?: string };
 
 async function sendEmail(payload: { to: string; subject: string; html: string }): Promise<EmailResult> {
   if (!resend) {
-    return { ok: false, error: "RESEND_API_KEY가 설정되지 않았습니다." };
+    return { ok: false, error: "RESEND_API_KEY is missing." };
   }
   try {
     await resend.emails.send({
@@ -21,7 +21,7 @@ async function sendEmail(payload: { to: string; subject: string; html: string })
     });
     return { ok: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "이메일 발송 실패";
+    const message = error instanceof Error ? error.message : "Email send failed.";
     return { ok: false, error: message };
   }
 }
@@ -37,6 +37,8 @@ export async function sendScanEmail(payload: {
   email: string;
   timestamp: string;
   location: string;
+  locationLat?: number | null;
+  locationLng?: number | null;
   result: string;
   vehiclePlate?: string | null;
 }): Promise<EmailResult> {
